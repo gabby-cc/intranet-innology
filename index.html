@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión - Intranet Innology</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="login-body">
+
+    <!-- Lado Izquierdo (Ahora blanco para respetar el logo negro) -->
+    <div class="login-left">
+        <div class="logo-container">
+            <!-- Tu logo normal, sin filtros. Se verá perfecto en fondo blanco -->
+            <img src="img/logo.png" alt="Logo Innology" style="max-width: 200px; height: auto;">
+        </div>
+
+        <h1>Tu espacio de<br>trabajo con<br>Innology</h1>
+        <p>Da seguimiento a tus solicitudes, consulta noticias y comparte documentos con el equipo, todo desde un mismo lugar.</p>
+
+        <ul class="features-list">
+            <li>Tickets con seguimiento claro</li>
+            <li>Noticias y calendario según tu perfil</li>
+        </ul>
+    </div>
+
+    <!-- Lado Derecho (Gris claro) -->
+    <div class="login-right">
+        <div class="login-form-container">
+            <h2>Iniciar sesión</h2>
+            <div class="title-underline"></div>
+            <p>Escribe tus datos para entrar a tu vista de la intranet.</p>
+
+            <div class="form-card">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="email">Correo electrónico</label>
+                        <input type="email" id="email" class="form-control" placeholder="nombre@empresa.com" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Contraseña</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="password" class="form-control" placeholder="Tu contraseña" required>
+                            <button type="button" class="toggle-password" onclick="togglePassword()">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="error-message" style="display: none; color: var(--primary-red); font-size: 0.85rem; margin-bottom: 15px; font-weight: 500;"></div>
+
+                    <div class="form-options">
+                        <label class="checkbox-container">
+                            <input type="checkbox" checked> Recordar mi sesión
+                        </label>
+                        <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Entrar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
+        }
+    </script>
+    <script src="js/login.js"></script>
+</body>
+</html>
