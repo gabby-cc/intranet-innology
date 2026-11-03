@@ -12,9 +12,9 @@ export class DocumentModel {
 
     searchDocuments(query) {
         const term = query.toLowerCase();
-        return this.documents.filter(doc => 
-            doc.name.toLowerCase().includes(term) || 
-            doc.folder.toLowerCase().includes(term) || 
+        return this.documents.filter(doc =>
+            doc.name.toLowerCase().includes(term) ||
+            doc.folder.toLowerCase().includes(term) ||
             doc.author.toLowerCase().includes(term)
         );
     }
@@ -32,20 +32,48 @@ export class DocumentModel {
         const now = new Date();
         const dateStr = now.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
         const sizeStr = (file.size / 1024).toFixed(0) + " KB";
-        const type = file.name.endsWith('.pdf') ? 'pdf' : 'excel';
+        const fileName = file.name.toLowerCase();
+        let type = 'default';
+        if (fileName.endsWith('.pdf')) type = 'pdf';
+        else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) type = 'excel';
+        else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) type = 'word';
 
         const newDoc = {
             id: this.documents.length + 1,
             name: name || file.name,
-            folder: folder,
+            folder,
             author: "Laura Méndez",
             date: dateStr,
             size: sizeStr,
             origin: "Subido por ti",
-            type: type,
-            file: file
+            type,
+            file
         };
+        this.documents.unshift(newDoc);
+        return newDoc;
+    }
 
+    addDocumentFromTicket(name, folder, file, ticketId) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+        const sizeStr = (file.size / 1024).toFixed(0) + " KB";
+        const fileName = file.name.toLowerCase();
+        let type = 'default';
+        if (fileName.endsWith('.pdf')) type = 'pdf';
+        else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) type = 'excel';
+        else if (fileName.endsWith('.doc') || fileName.endsWith('.docx')) type = 'word';
+
+        const newDoc = {
+            id: this.documents.length + 1,
+            name: name || file.name,
+            folder: folder || 'Tickets',
+            author: "Laura Méndez",
+            date: dateStr,
+            size: sizeStr,
+            origin: `Adjunto en ticket ${ticketId}`,
+            type,
+            file
+        };
         this.documents.unshift(newDoc);
         return newDoc;
     }

@@ -1,14 +1,14 @@
 import { DashboardController } from './controllers/DashboardController.js';
 import { DocumentController } from './controllers/DocumentController.js';
-import { TicketController } from './controllers/TicketController.js';
 import { GlobalSearchController } from './controllers/GlobalSearchController.js';
+import { TicketDetailController } from './controllers/TicketDetailController.js'; // ✅ NUEVO
 
 import { TicketModel } from './models/TicketModel.js';
 import { DocumentModel } from './models/DocumentModel.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    // 1. Lógica de Pestañas con Hash
+    // 1. Lógica de Pestañas
     const menuItems = document.querySelectorAll('.menu-item');
     const views = document.querySelectorAll('.view-section');
 
@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeMenu) activeMenu.classList.add('active');
         window.location.hash = targetId.replace('view-', '');
     }
+
+    // ✅ Exponer switchView globalmente para que los controladores puedan usarlo
+    window.switchView = switchView;
 
     menuItems.forEach(item => {
         item.addEventListener('click', (e) => {
@@ -35,71 +38,398 @@ document.addEventListener('DOMContentLoaded', () => {
         switchView('view-' + hash);
     }
 
-    // 2. Inicializar Modelos y Controladores
-    try {
-        const ticketModel = new TicketModel();
-        const documentModel = new DocumentModel();
+    // 2. Inicializar Modelos
+    const ticketModel = new TicketModel();
+    const documentModel = new DocumentModel();
 
-        if (document.getElementById('view-inicio')) new DashboardController();
+    // 3. Inicializar Controladores
+    if (document.getElementById('view-inicio')) new DashboardController();
+    if (document.getElementById('view-documentos')) new DocumentController(documentModel);
+    new GlobalSearchController(ticketModel, documentModel, null);
+    
+    // ✅ NUEVO: Inicializar el controlador de detalle de ticket
+    window.ticketDetailController = new TicketDetailController(ticketModel);
+
+    // =============================================
+    // 4. ARCHIVOS TEMPORALES
+    // =============================================
+    let archivosTemporales = [];
+
+    function renderFilePreview() {
+        const preview = document.getElementById('file-preview');
+        if (!preview) return;
         
-        let ticketController;
-        if (document.getElementById('view-tickets')) {
-            ticketController = new TicketController(ticketModel);
-        }
-        
-        if (document.getElementById('view-documentos')) {
-            new DocumentController(documentModel);
-        }
-
-        new GlobalSearchController(ticketModel, documentModel, ticketController);
-
-               // 3. LÓGICA DE LOS BOTONES DE ACCESOS RÁPIDOS
-        // Botón "Crear un ticket"
-        const btnCrearTicket = document.querySelector('.quick-access .quick-btn:nth-child(2)');
-        if (btnCrearTicket) {
-            btnCrearTicket.removeAttribute('onclick');
-            btnCrearTicket.addEventListener('click', () => {
-                // 1. Ir a la vista de tickets
-                switchView('view-tickets');
-                
-                // 2. Abrir el modal y LIMPIAR LOS CAMPOS
-                setTimeout(() => {
-                    const modal = document.getElementById('ticket-modal');
-                    if (modal) {
-                        // Limpiamos el formulario
-                        document.getElementById('new-ticket-title').value = '';
-                        document.getElementById('new-ticket-description').value = '';
-                        document.getElementById('file-preview').innerHTML = '';
-                        // Abrimos el modal
-                        modal.classList.add('active');
-                    }
-                }, 100);
-            });
-        }
-
-        // Botón "Ver mis documentos" (ya funciona con el onclick del HTML, pero lo forzamos por si acaso)
-        const btnVerDocs = document.querySelector('.quick-access .quick-btn:nth-child(3)');
-        if (btnVerDocs) {
-            btnVerDocs.removeAttribute('onclick');
-            btnVerDocs.addEventListener('click', () => {
-                switchView('view-documentos');
-            });
-        }
-
-        // Botón "Ver reuniones"
-        const btnVerReuniones = document.querySelector('.quick-access .quick-btn:nth-child(4)');
-        if (btnVerReuniones) {
-            btnVerReuniones.removeAttribute('onclick');
-            btnVerReuniones.addEventListener('click', () => {
-                switchView('view-calendario');
-            });
-        }
-
-    } catch (error) {
-        console.error("Error al inicializar los módulos:", error);
+        preview.innerHTML = '';
+        archivosTemporales.forEach((file, index) => {
+            const tag = document.createElement('div');
+            tag.className = 'file-tag';
+            tag.style.cssText = 'display: inline-flex; align-items: center; background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; color: #333; margin: 0 8px 8px 0;';
+            tag.innerHTML = `
+                <span style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;" title="${file.name}">${file.name}</span>
+                <button type="button" onclick="window.removeTempFile(${index})" style="background: none; border: none; color: #9CA3AF; cursor: pointer; font-weight: bold; font-size: 1rem; padding: 0; line-height: 1;">✕</button>
+            `;
+            preview.appendChild(tag);
+        });
     }
 
-    // 4. Lógica Móvil y Cerrar Sesión
+    window.removeTempFile = function(index) {
+        archivosTemporales.splice(index, 1);
+        renderFilePreview();
+    };
+
+    const fileInput = document.getElementById('new-ticket-files');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            const files = e.target.files;
+            for (let i = 0; i < files.length; i++) {
+                if (!archivosTemporales.find(f => f.name === files[i].name)) {
+                    archivosTemporales.push({ file: files[i], name: files[i].name });
+                }
+            }
+            renderFilePreview();
+            fileInput.value = '';
+        });
+    }
+
+    // =============================================
+    // 5. LÓGICA DE TICKETS
+    // =============================================
+    function renderTickets() {
+        const tbody = document.getElementById('tickets-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        
+        ticketModel.getAllTickets().forEach(ticket => {
+            const tr = document.createElement('tr');
+            tr.className = 'ticket-row';
+            tr.dataset.id = ticket.id;
+            tr.style.cursor = 'pointer';
+            const priorityClass = ticket.priority === 'Alta' ? 'alta' : ticket.priority === 'Media' ? 'media' : 'baja';
+            const statusClass = ticket.status === 'En atención' ? 'atencion' : ticket.status === 'En espera' ? 'espera' : 'abierto';
+            
+            tr.innerHTML = `
+                <td class="ticket-id">${ticket.id}</td>
+                <td>${ticket.title}</td>
+                <td>${ticket.category}</td>
+                <td><span class="badge-priority ${priorityClass}">${ticket.priority}</span></td>
+                <td><span class="badge-status ${statusClass}">${ticket.status}</span></td>
+                <td>Daniel Rojas</td>
+                <td>${ticket.date}</td>
+            `;
+            
+            tr.addEventListener('click', () => {
+                const drawer = document.getElementById('ticket-drawer');
+                const overlay = document.getElementById('drawer-overlay');
+                if (drawer && overlay) {
+                    document.getElementById('drawer-id').textContent = ticket.id;
+                    document.getElementById('drawer-title').textContent = ticket.title;
+                    document.getElementById('drawer-category').textContent = ticket.category;
+                    document.getElementById('drawer-solicitante').textContent = ticket.solicitante;
+                    document.getElementById('drawer-empresa').textContent = ticket.empresa;
+                    document.getElementById('drawer-date').textContent = ticket.date;
+                    document.getElementById('drawer-description').textContent = ticket.description;
+                    
+                    const statusBadge = document.getElementById('drawer-status');
+                    statusBadge.textContent = ticket.status;
+                    statusBadge.className = 'badge-status ' + statusClass;
+                    
+                    const priorityBadge = document.getElementById('drawer-priority');
+                    priorityBadge.textContent = ticket.priority;
+                    priorityBadge.className = 'badge-priority ' + priorityClass;
+
+                    // Historial
+                    const timeline = document.getElementById('drawer-timeline');
+                    if (timeline) {
+                        timeline.innerHTML = '';
+                        (ticketModel.getHistoryByTicketId(ticket.id) || []).forEach(item => {
+                            const newItem = document.createElement('div');
+                            newItem.className = 'timeline-item';
+                            const textContent = item.tipo === 'comentario' ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` : `<strong>${item.accion}</strong>`;
+                            newItem.innerHTML = `
+                                <div class="timeline-dot ${item.tipo === 'comentario' ? 'active' : ''}"></div>
+                                <div class="timeline-content">${textContent}<span>${item.autor}, ${item.fecha}</span></div>
+                            `;
+                            timeline.appendChild(newItem);
+                        });
+                    }
+
+                    // Archivos adjuntos en el ticket
+                    const filesList = document.getElementById('drawer-files-list');
+                    const filesSection = document.getElementById('drawer-files-section');
+                    if (filesList && filesSection) {
+                        filesList.innerHTML = '';
+                        if (ticket.archivos && ticket.archivos.length > 0) {
+                            filesSection.style.display = 'block';
+                            ticket.archivos.forEach((fileObj) => {
+                                const url = URL.createObjectURL(fileObj.file);
+                                const li = document.createElement('li');
+                                li.innerHTML = `
+                                    <div class="attachment-item">
+                                        <div class="attachment-info">
+                                            <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                                            <span class="attachment-name" title="${fileObj.name}">${fileObj.name}</span>
+                                        </div>
+                                        <div class="attachment-actions">
+                                            <button class="btn-action" title="Previsualizar" onclick="window.open('${url}', '_blank')">
+                                                <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                                            </button>
+                                            <a href="${url}" download="${fileObj.name}" class="btn-action" title="Descargar" style="text-decoration:none;">
+                                                <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                                            </a>
+                                        </div>
+                                    </div>
+                                `;
+                                filesList.appendChild(li);
+                            });
+                        } else {
+                            filesSection.style.display = 'none';
+                        }
+                    }
+
+                    drawer.classList.add('open');
+                    overlay.classList.add('active');
+
+                    // ✅ NUEVO: Conectar el botón "Ver detalle completo" con el controlador
+                    const btnDetalle = document.getElementById('btn-ver-detalle-completo');
+                    if (btnDetalle) {
+                        btnDetalle.onclick = () => {
+                            drawer.classList.remove('open');
+                            overlay.classList.remove('active');
+                            if (window.ticketDetailController) {
+                                window.ticketDetailController.openTicket(ticket.id);
+                            }
+                        };
+                    }
+                }
+            });
+            tbody.appendChild(tr);
+
+            // ✅ Escuchar cuando se actualiza un ticket para refrescar la lista y el badge
+document.addEventListener('ticketUpdated', () => {
+    renderTickets();
+    updateBadge();
+});
+        });
+    }
+
+    function updateBadge() {
+        const allTickets = ticketModel.getAllTickets();
+        
+        // 1. Contar TODOS los tickets que NO estén "Resuelto"
+        const abiertos = allTickets.filter(t => t.status !== 'Resuelto').length;
+        
+        // 2. Actualizar el badge rojo del menú lateral
+        const badgeMenu = document.querySelector('.menu-item[data-target="view-tickets"] .badge');
+        if (badgeMenu) {
+            badgeMenu.textContent = abiertos;
+            badgeMenu.style.display = abiertos > 0 ? 'inline-block' : 'none';
+        }
+
+        // 3. Actualizar las tarjetas de resumen superiores
+        const countAbiertos = document.getElementById('count-abiertos');
+        if (countAbiertos) {
+            countAbiertos.textContent = abiertos;
+        }
+
+        const enEspera = allTickets.filter(t => t.status === 'En espera').length;
+        const cardEnEspera = document.querySelectorAll('.summary-card p')[2];
+        if (cardEnEspera && cardEnEspera.previousElementSibling) {
+            cardEnEspera.previousElementSibling.textContent = enEspera;
+        }
+
+        const resueltos = allTickets.filter(t => t.status === 'Resuelto').length;
+        const cardResueltos = document.querySelectorAll('.summary-card p')[3];
+        if (cardResueltos && cardResueltos.previousElementSibling) {
+            cardResueltos.previousElementSibling.textContent = resueltos;
+        }
+    }
+
+    renderTickets();
+    updateBadge();
+
+    // CERRAR DRAWER
+    const drawerOverlay = document.getElementById('drawer-overlay');
+    const btnCerrarDrawer = document.getElementById('btn-cerrar-drawer');
+    
+    if (drawerOverlay) {
+        drawerOverlay.addEventListener('click', () => {
+            document.getElementById('ticket-drawer').classList.remove('open');
+            drawerOverlay.classList.remove('active');
+        });
+    }
+    
+    if (btnCerrarDrawer) {
+        btnCerrarDrawer.addEventListener('click', () => {
+            document.getElementById('ticket-drawer').classList.remove('open');
+            if (drawerOverlay) drawerOverlay.classList.remove('active');
+        });
+    }
+
+    // ABRIR MODAL
+    const btnNuevoTicket = document.getElementById('btn-nuevo-ticket');
+    if (btnNuevoTicket) {
+        btnNuevoTicket.addEventListener('click', (e) => {
+            e.preventDefault();
+            const modal = document.getElementById('ticket-modal');
+            if (modal) {
+                document.getElementById('new-ticket-title').value = '';
+                document.getElementById('new-ticket-description').value = '';
+                
+                archivosTemporales = [];
+                renderFilePreview();
+                
+                document.getElementById('new-ticket-type').value = 'Funcional';
+                document.getElementById('conditional-fields').style.display = 'block';
+                document.getElementById('group-funcional').style.display = 'block';
+                document.getElementById('group-tecnico').style.display = 'none';
+
+                modal.classList.add('active');
+            }
+        });
+    }
+
+    // CERRAR MODAL
+    const closeModal = () => document.getElementById('ticket-modal').classList.remove('active');
+    const btnCerrarModal = document.getElementById('btn-cerrar-modal');
+    const btnCancelarModal = document.getElementById('btn-cancelar-modal');
+    if (btnCerrarModal) btnCerrarModal.addEventListener('click', closeModal);
+    if (btnCancelarModal) btnCancelarModal.addEventListener('click', closeModal);
+
+    // CAMPOS CONDICIONALES
+    const typeSelect = document.getElementById('new-ticket-type');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', (e) => {
+            const groupFuncional = document.getElementById('group-funcional');
+            const groupTecnico = document.getElementById('group-tecnico');
+            const conditionalFields = document.getElementById('conditional-fields');
+            
+            conditionalFields.style.display = 'block';
+            
+            if (e.target.value === 'Funcional') {
+                groupFuncional.style.display = 'block';
+                groupTecnico.style.display = 'none';
+            } else {
+                groupFuncional.style.display = 'none';
+                groupTecnico.style.display = 'block';
+            }
+        });
+    }
+
+    // CREAR TICKET
+    const btnSubmitTicket = document.getElementById('btn-submit-ticket');
+    if (btnSubmitTicket) {
+        btnSubmitTicket.addEventListener('click', () => {
+            const title = document.getElementById('new-ticket-title').value.trim();
+            const priority = document.getElementById('new-ticket-priority').value;
+            const description = document.getElementById('new-ticket-description').value.trim();
+            const typeValue = document.getElementById('new-ticket-type').value;
+
+            if (title === '' || description === '') {
+                alert('Llena el asunto y la descripción');
+                return;
+            }
+
+            let category = '';
+            let sistema = '';
+            let ambiente = '';
+            let modulo = '';
+
+            if (typeValue === 'Funcional') {
+                modulo = document.getElementById('new-ticket-modulo').value;
+                category = modulo;
+            } else {
+                sistema = document.getElementById('new-ticket-sistema').value;
+                ambiente = document.getElementById('new-ticket-ambiente').value;
+                category = sistema;
+            }
+
+            const extraData = {
+                tipoTicket: typeValue,
+                pais: document.getElementById('new-ticket-country').value,
+                modulo: modulo,
+                sistema: sistema,
+                ambiente: ambiente,
+                contexto: '',
+                medioRecepcion: 'Portal',
+                enlaceExterno: ''
+            };
+
+            const newTicket = ticketModel.createTicket(title, category, priority, description, archivosTemporales, extraData);
+            
+            archivosTemporales.forEach(fileObj => {
+                documentModel.addDocumentFromTicket(
+                    fileObj.name, 
+                    'Tickets', 
+                    fileObj.file, 
+                    newTicket.id
+                );
+            });
+            
+            renderTickets();
+            updateBadge();
+            
+            document.dispatchEvent(new CustomEvent('documentAdded'));
+            
+            document.getElementById('new-ticket-title').value = '';
+            document.getElementById('new-ticket-description').value = '';
+            archivosTemporales = [];
+            renderFilePreview();
+            
+            document.getElementById('new-ticket-type').value = 'Funcional';
+            document.getElementById('conditional-fields').style.display = 'none';
+            document.getElementById('group-funcional').style.display = 'none';
+            document.getElementById('group-tecnico').style.display = 'none';
+
+            closeModal();
+        });
+    }
+
+    // =============================================
+    // 5.1 LÓGICA PARA AGREGAR COMENTARIOS AL HISTORIAL
+    // =============================================
+    const btnEnviarComentario = document.getElementById('btn-enviar-comentario');
+    const commentInput = document.getElementById('comment-input');
+
+    if (btnEnviarComentario && commentInput) {
+        btnEnviarComentario.addEventListener('click', () => {
+            const commentText = commentInput.value.trim();
+            
+            if (commentText === '') {
+                alert('Por favor, escribe un comentario antes de enviarlo.');
+                return;
+            }
+
+            const currentTicketId = document.getElementById('drawer-id').textContent;
+            if (!currentTicketId || currentTicketId === 'TK-0000') {
+                alert('No hay un ticket seleccionado.');
+                return;
+            }
+
+            ticketModel.addComment(currentTicketId, commentText);
+
+            const timeline = document.getElementById('drawer-timeline');
+            if (timeline) {
+                timeline.innerHTML = '';
+                (ticketModel.getHistoryByTicketId(currentTicketId) || []).forEach(item => {
+                    const newItem = document.createElement('div');
+                    newItem.className = 'timeline-item';
+                    const textContent = item.tipo === 'comentario' 
+                        ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` 
+                        : `<strong>${item.accion}</strong>`;
+                    
+                    newItem.innerHTML = `
+                        <div class="timeline-dot ${item.tipo === 'comentario' ? 'active' : ''}"></div>
+                        <div class="timeline-content">${textContent}<span>${item.autor}, ${item.fecha}</span></div>
+                    `;
+                    timeline.appendChild(newItem);
+                });
+            }
+
+            commentInput.value = '';
+        });
+    }
+
+    // 6. Menú móvil, notificaciones, calendario
     const sidebar = document.getElementById('sidebar');
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     const overlay = document.getElementById('overlay');
@@ -124,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-           // 6. LÓGICA DE NOTIFICACIONES
+    // 7. Lógica de Notificaciones
     const notifContainer = document.getElementById('notifications-container');
     const notifDropdown = document.getElementById('notifications-dropdown');
     const bellIcon = document.getElementById('bell-icon');
@@ -136,27 +466,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Lógica para redirigir al hacer clic en una notificación
     const notifItems = document.querySelectorAll('.notif-item');
     notifItems.forEach(item => {
         item.addEventListener('click', () => {
             const targetView = item.getAttribute('data-target');
             const ticketId = item.getAttribute('data-ticket');
 
-            // 1. Cerrar el menú de notificaciones
             notifDropdown.classList.remove('active');
-
-            // 2. Animación de desaparición (opcional)
             item.style.opacity = '0';
             item.style.transform = 'translateX(20px)';
             item.style.transition = 'all 0.3s ease';
 
-            // 3. Redirigir a la vista correspondiente
-            if (targetView) {
-                switchView(targetView);
-            }
+            if (targetView) switchView(targetView);
 
-            // 4. Si es un ticket, abrir su Drawer automáticamente
             if (targetView === 'view-tickets' && ticketId) {
                 setTimeout(() => {
                     const row = document.querySelector(`#tickets-tbody tr[data-id="${ticketId}"]`);
@@ -164,36 +486,232 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 100);
             }
 
-            // 5. Eliminar la notificación del DOM después de la animación
             setTimeout(() => {
                 item.remove();
-                
-                // Si ya no quedan notificaciones, ocultar el puntito rojo y mostrar mensaje
                 const remainingNotifs = document.querySelectorAll('.notif-item');
                 if (remainingNotifs.length === 0) {
                     const dot = document.querySelector('.notification-dot');
                     if (dot) dot.style.display = 'none';
-                    
                     const notifList = document.querySelector('.notif-list');
-                    if (notifList) {
-                        notifList.innerHTML = '<div style="padding: 20px; text-align: center; color: #9CA3AF; font-size: 0.9rem;">No hay notificaciones nuevas.</div>';
-                    }
+                    if (notifList) notifList.innerHTML = '<div style="padding: 20px; text-align: center; color: #9CA3AF; font-size: 0.9rem;">No hay notificaciones nuevas.</div>';
                 }
-            }, 300); // Esperamos a que termine la animación
+            }, 300);
         });
     });
 
-    // Cerrar el menú si se hace clic fuera
     document.addEventListener('click', (e) => {
         if (notifContainer && !notifContainer.contains(e.target)) {
             notifDropdown.classList.remove('active');
         }
     });
 
-    // Cerrar el menú si se hace clic fuera
-    document.addEventListener('click', (e) => {
-        if (notifContainer && !notifContainer.contains(e.target)) {
-            notifDropdown.classList.remove('active');
+    // 8. Lógica del Calendario
+    const btnVerCalendario = document.querySelector('.card a.link-red[href="#"]');
+    if (btnVerCalendario) {
+        btnVerCalendario.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('view-calendario');
+        });
+    }
+
+    const today = new Date();
+    let currentMonth = today.getMonth(); 
+    let currentYear = today.getFullYear(); 
+
+    const events = [
+        { date: "2026-10-19", time: "09:00", title: "Capacitación a usuarios clave" },
+        { date: "2026-10-21", time: "10:00", title: "Reunión de seguimiento semanal" },
+        { date: "2026-10-29", time: "10:30", title: "Revisión de pruebas de cuentas por pagar" },
+        { date: "2026-11-05", time: "11:00", title: "Prueba de noviembre" }
+    ];
+
+    function renderCalendar() {
+        const calendarDays = document.getElementById('calendar-days');
+        const monthYearLabel = document.getElementById('calendar-month-year');
+        const eventsList = document.getElementById('calendar-events-list');
+        if (!calendarDays) return;
+
+        calendarDays.innerHTML = '';
+        if (eventsList) eventsList.innerHTML = '';
+
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        if (monthYearLabel) monthYearLabel.textContent = `${monthNames[currentMonth]} de ${currentYear}`;
+
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        let startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
+
+        for (let i = 0; i < startDay; i++) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'calendar-day empty';
+            calendarDays.appendChild(emptyDiv);
         }
-    });
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            const dayEvents = events.filter(e => e.date === dateStr);
+            
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'calendar-day';
+            
+            const todayDate = new Date();
+            if (currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear() && day === todayDate.getDate()) {
+                dayDiv.classList.add('today');
+            }
+
+            let dayHTML = `<div style="text-align: right; margin-bottom: 5px;"><span class="calendar-day-number">${day}</span></div>`;
+
+            dayEvents.forEach(event => {
+                dayHTML += `
+                    <div class="calendar-event-chip" title="${event.title}">
+                        <strong>${event.time}</strong> ${event.title}
+                    </div>
+                `;
+            });
+
+            dayDiv.innerHTML = dayHTML;
+            calendarDays.appendChild(dayDiv);
+
+            dayEvents.forEach(event => {
+                if (!eventsList) return;
+                const item = document.createElement('div');
+                item.className = 'event-item';
+                item.innerHTML = `
+                    <div class="event-date">
+                        <strong>${day}</strong>
+                        <span>${monthNames[currentMonth].substring(0, 3).toLowerCase()}</span>
+                    </div>
+                    <div class="event-info">
+                        <h4>${event.title}</h4>
+                        <p>${event.time}, Reunión</p>
+                    </div>
+                `;
+                eventsList.appendChild(item);
+            });
+        }
+    }
+
+    const btnPrev = document.getElementById('btn-prev-month');
+    const btnNext = document.getElementById('btn-next-month');
+
+    if (btnPrev) {
+        btnPrev.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        });
+    }
+
+    if (btnNext) {
+        btnNext.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            renderCalendar();
+        });
+    }
+
+    renderCalendar();
+
+    // 9. LÓGICA PARA AGENDAR REUNIÓN
+    const btnAgendar = document.getElementById('btn-agendar-reunion');
+    const meetingModal = document.getElementById('meeting-modal');
+    const btnCerrarMeeting = document.getElementById('btn-cerrar-modal-meeting');
+    const btnCancelarMeeting = document.getElementById('btn-cancelar-modal-meeting');
+    const btnSubmitMeeting = document.getElementById('btn-submit-meeting');
+
+    if (btnAgendar) {
+        btnAgendar.addEventListener('click', () => {
+            document.getElementById('meeting-title').value = '';
+            document.getElementById('meeting-time').value = '10:00';
+            
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1); 
+            const minDate = tomorrow.toISOString().split('T')[0];
+            
+            const dateInput = document.getElementById('meeting-date');
+            dateInput.min = minDate; 
+            dateInput.value = minDate; 
+            
+            meetingModal.classList.add('active');
+        });
+    }
+
+    const closeMeetingModal = () => { if (meetingModal) meetingModal.classList.remove('active'); };
+    if (btnCerrarMeeting) btnCerrarMeeting.addEventListener('click', closeMeetingModal);
+    if (btnCancelarMeeting) btnCancelarMeeting.addEventListener('click', closeMeetingModal);
+
+    if (btnSubmitMeeting) {
+        btnSubmitMeeting.addEventListener('click', () => {
+            const title = document.getElementById('meeting-title').value.trim();
+            const date = document.getElementById('meeting-date').value;
+            const time = document.getElementById('meeting-time').value;
+
+            if (title === '' || date === '') {
+                alert('Por favor, llena el título y la fecha.');
+                return;
+            }
+
+            const selectedDate = new Date(date + 'T00:00:00');
+            const todayCheck = new Date();
+            todayCheck.setHours(0, 0, 0, 0); 
+
+            if (selectedDate <= todayCheck) {
+                alert('No puedes agendar una reunión para hoy ni para días pasados. Debe ser con al menos 1 día de anticipación.');
+                return;
+            }
+
+            events.push({
+                id: Date.now(),
+                date: date,
+                time: time,
+                title: title
+            });
+
+            currentMonth = selectedDate.getMonth();
+            currentYear = selectedDate.getFullYear();
+            renderCalendar();
+
+            const notifList = document.querySelector('.notif-list');
+            const notifDot = document.querySelector('.notification-dot');
+            
+            if (notifList) {
+                if (notifList.innerHTML.includes('No hay notificaciones nuevas')) {
+                    notifList.innerHTML = '';
+                }
+
+                const newNotif = document.createElement('div');
+                newNotif.className = 'notif-item';
+                newNotif.setAttribute('data-target', 'view-calendario');
+                newNotif.innerHTML = `
+                    <div class="notif-icon system">CAL</div>
+                    <div class="notif-text">
+                        <strong>Nueva reunión: ${title}</strong>
+                        <span>Agendada para el ${date} a las ${time}</span>
+                    </div>
+                `;
+
+                newNotif.addEventListener('click', function() {
+                    this.style.opacity = '0';
+                    this.style.transform = 'translateX(20px)';
+                    setTimeout(() => this.remove(), 300);
+                    switchView('view-calendario');
+                });
+
+                notifList.insertBefore(newNotif, notifList.firstChild);
+                if (notifDot) notifDot.style.display = 'block';
+            }
+
+            closeMeetingModal();
+        });
+    }
+
+    // 10. LÓGICA DEL ENLACE "VER CALENDARIO" DEL INICIO
+    const linkVerCalendario = document.getElementById('link-ver-calendario');
+    if (linkVerCalendario) {
+        linkVerCalendario.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('view-calendario');
+        });
+    }
+
 });

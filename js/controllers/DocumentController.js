@@ -71,5 +71,10 @@ export class DocumentController {
                 closeModal();
             });
         }
+
+                // Escuchar cuando se agrega un documento desde un ticket
+        document.addEventListener('documentAdded', () => {
+            this.view.renderDocuments(this.model.getAllDocuments());
+        });
     }
 }
