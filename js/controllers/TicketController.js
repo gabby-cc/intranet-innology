@@ -37,19 +37,16 @@ export class TicketDetailController {
     }
 
     init() {
-        // Botón Volver
         const btnVolver = document.getElementById('btn-volver-tickets');
         if (btnVolver) {
             btnVolver.addEventListener('click', () => this.goTo('view-tickets'));
         }
 
-        // ✅ Botón Enviar comentario
         const btnEnviar = document.getElementById('dt-btn-enviar');
         if (btnEnviar) {
             btnEnviar.addEventListener('click', () => this.enviarComentario());
         }
 
-        // ✅ Enter + Ctrl/Cmd para enviar
         const input = document.getElementById('dt-comment-input');
         if (input) {
             input.addEventListener('keydown', (e) => {
@@ -60,28 +57,27 @@ export class TicketDetailController {
             });
         }
 
-        // Botón Escalar
+        // ✅ Escuchar el botón de guardar solución
+        const btnGuardarSolucion = document.getElementById('btn-guardar-solucion');
+        if (btnGuardarSolucion) {
+            btnGuardarSolucion.addEventListener('click', () => this.guardarSolucion());
+        }
+
         const btnEscalar = document.getElementById('btn-escalar-ticket');
         if (btnEscalar) {
             btnEscalar.addEventListener('click', () => this.escalarTicket());
         }
 
-        // Botón Cerrar Ticket
         const btnCerrar = document.getElementById('btn-cerrar-ticket');
         if (btnCerrar) {
             btnCerrar.addEventListener('click', () => this.cerrarTicket());
         }
     }
 
-    /**
-     * ✅ NUEVO: Método que se llama cuando quieres abrir el detalle de un ticket
-     */
     openTicket(ticketId) {
-        console.log('📄 Abriendo ticket:', ticketId);
         this.loadTicket(ticketId);
         this.goTo('view-detalle-ticket');
         
-        // Actualizar el menú lateral
         document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
         const menuItem = document.querySelector('.menu-item[data-target="view-tickets"]');
         if (menuItem) menuItem.classList.add('active');
@@ -109,13 +105,11 @@ export class TicketDetailController {
         if (statusEl) {
             statusEl.textContent = ticket.status;
             statusEl.className = 'badge-status ' + statusClass;
-            statusEl.removeAttribute('style');
         }
         const priorityEl = document.getElementById('dt-priority');
         if (priorityEl) {
             priorityEl.textContent = ticket.priority;
             priorityEl.className = 'badge-priority ' + priorityClass;
-            priorityEl.removeAttribute('style');
         }
 
         this.setText('dt-description', ticket.description || '-');
@@ -138,57 +132,63 @@ export class TicketDetailController {
 
         this.setText('dt-responsable', ticket.responsable || 'Sin asignar');
         this.setText('dt-perfil', ticket.perfil || '-');
-
         this.setText('dt-fecha-creacion', ticket.date || '-');
         this.setText('dt-fecha-compromiso', ticket.fechaCompromiso || '-');
         this.setText('dt-plazo', '1 día hábil');
         this.setText('dt-total-horas', ticket.horas || '0h 0m');
 
-        // ✅ Deshabilitar botón de cerrar si ya está resuelto
-        const btnCerrar = document.getElementById('btn-cerrar-ticket');
-        if (btnCerrar) {
-            const cerrado = ticket.status === 'Resuelto';
-            btnCerrar.disabled = cerrado;
-            btnCerrar.style.opacity = cerrado ? '0.5' : '1';
-            btnCerrar.style.cursor = cerrado ? 'not-allowed' : 'pointer';
-        }
+        // ✅ Renderizar las soluciones en su propio contenedor
+        this.renderSoluciones(ticket);
 
-        // ✅ Deshabilitar el chat si el ticket está cerrado
+        // ✅ Bloquear si está resuelto
+        const btnCerrar = document.getElementById('btn-cerrar-ticket');
         const chatInput = document.getElementById('dt-comment-input');
         const btnEnviar = document.getElementById('dt-btn-enviar');
+        const inputSolucion = document.getElementById('dt-solucion-input');
+        const btnGuardarSolucion = document.getElementById('btn-guardar-solucion');
+
         if (ticket.status === 'Resuelto') {
-            if (chatInput) {
-                chatInput.disabled = true;
-                chatInput.placeholder = 'Este ticket está cerrado. No se pueden enviar más mensajes.';
-                chatInput.style.background = '#F3F4F6';
-                chatInput.style.cursor = 'not-allowed';
-            }
-            if (btnEnviar) {
-                btnEnviar.disabled = true;
-                btnEnviar.style.opacity = '0.5';
-                btnEnviar.style.cursor = 'not-allowed';
-            }
+            if (btnCerrar) { btnCerrar.disabled = true; btnCerrar.style.opacity = '0.5'; btnCerrar.style.cursor = 'not-allowed'; }
+            if (chatInput) { chatInput.disabled = true; chatInput.placeholder = 'Este ticket está cerrado.'; chatInput.style.background = '#F3F4F6'; chatInput.style.cursor = 'not-allowed'; }
+            if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.style.opacity = '0.5'; btnEnviar.style.cursor = 'not-allowed'; }
+            if (inputSolucion) { inputSolucion.disabled = true; inputSolucion.style.background = '#F3F4F6'; inputSolucion.style.cursor = 'not-allowed'; inputSolucion.placeholder = 'Ticket cerrado. Solución en solo lectura.'; }
+            if (btnGuardarSolucion) { btnGuardarSolucion.disabled = true; btnGuardarSolucion.style.opacity = '0.5'; btnGuardarSolucion.style.cursor = 'not-allowed'; }
         } else {
-            if (chatInput) {
-                chatInput.disabled = false;
-                chatInput.placeholder = 'Escribe un comentario o actualización...';
-                chatInput.style.background = '#fff';
-                chatInput.style.cursor = 'text';
-            }
-            if (btnEnviar) {
-                btnEnviar.disabled = false;
-                btnEnviar.style.opacity = '1';
-                btnEnviar.style.cursor = 'pointer';
-            }
+            if (btnCerrar) { btnCerrar.disabled = false; btnCerrar.style.opacity = '1'; btnCerrar.style.cursor = 'pointer'; }
+            if (chatInput) { chatInput.disabled = false; chatInput.placeholder = 'Escribe un comentario o actualización...'; chatInput.style.background = '#fff'; chatInput.style.cursor = 'text'; }
+            if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.style.opacity = '1'; btnEnviar.style.cursor = 'pointer'; }
+            if (inputSolucion) { inputSolucion.disabled = false; inputSolucion.style.background = '#fff'; inputSolucion.style.cursor = 'text'; inputSolucion.placeholder = 'Escribe la solución aquí...'; }
+            if (btnGuardarSolucion) { btnGuardarSolucion.disabled = false; btnGuardarSolucion.style.opacity = '1'; btnGuardarSolucion.style.cursor = 'pointer'; }
         }
 
         this.renderHistorial();
     }
 
+    // ✅ Renderiza solo las soluciones en su cajita
+    renderSoluciones(ticket) {
+        const lista = document.getElementById('lista-soluciones');
+        if (!lista) return;
+
+        if (!ticket.soluciones || ticket.soluciones.length === 0) {
+            lista.innerHTML = '<p style="color:#9CA3AF;font-size:.85rem;text-align:center;padding:10px;">Aún no hay soluciones documentadas.</p>';
+        } else {
+            lista.innerHTML = ticket.soluciones.map(sol => `
+                <div style="background: #fff; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+                    <div style="font-size: 0.75rem; color: #6B7280; margin-bottom: 5px;">
+                        <strong>${this.escapeHTML(sol.autor)}</strong> · ${this.escapeHTML(sol.fecha)}
+                    </div>
+                    <div style="font-size: 0.9rem; color: #374151; white-space: pre-wrap;">
+                        ${this.escapeHTML(sol.texto)}
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
     renderHistorial() {
         const historial = this.model.getHistoryByTicketId(this.currentTicketId);
 
-        // ✅ Renderizar el CHAT (solo comentarios)
+        // Chat de Seguimiento (solo comentarios normales)
         const chat = document.getElementById('dt-chat');
         if (chat) {
             const comentarios = historial.filter(h => h.tipo === 'comentario');
@@ -209,7 +209,7 @@ export class TicketDetailController {
             chat.scrollTop = chat.scrollHeight;
         }
 
-        // ✅ Renderizar el HISTORIAL (eventos del sistema)
+        // Historial de eventos del sistema
         const lista = document.getElementById('dt-history-list');
         if (lista) {
             const eventos = historial.filter(h => h.tipo !== 'comentario');
@@ -227,32 +227,34 @@ export class TicketDetailController {
     }
 
     enviarComentario() {
-        if (!this.currentTicketId) {
-            alert('No hay un ticket seleccionado.');
-            return;
-        }
-        
+        if (!this.currentTicketId) return;
         const input = document.getElementById('dt-comment-input');
         const text = input ? input.value.trim() : '';
         if (!text) return;
 
-        // ✅ Verificar que el ticket no esté cerrado
-        const ticket = this.model.getTicketById(this.currentTicketId);
-        if (ticket && ticket.status === 'Resuelto') {
-            alert('El ticket está cerrado; ya no se pueden agregar comentarios.');
+        this.model.addComment(this.currentTicketId, text);
+        input.value = '';
+        this.renderHistorial();
+        this.notifyChange();
+    }
+
+    // ✅ Guarda la solución en su propio espacio
+    guardarSolucion() {
+        if (!this.currentTicketId) return;
+        const inputSolucion = document.getElementById('dt-solucion-input');
+        if (!inputSolucion) return;
+        
+        const text = inputSolucion.value.trim();
+        if (!text) {
+            alert('Por favor, escribe una solución antes de guardarla.');
             return;
         }
 
-        // Guardar en el modelo
-        this.model.addComment(this.currentTicketId, text);
+        // Llamamos al método del modelo que creamos para guardar soluciones
+        this.model.guardarSolucion(this.currentTicketId, text);
         
-        // Limpiar input
-        input.value = '';
-        
-        // Re-renderizar el chat
-        this.renderHistorial();
-        
-        // Notificar cambio (para que otras partes de la app se enteren)
+        inputSolucion.value = ''; // Limpiar caja
+        this.loadTicket(this.currentTicketId); // Recargar para ver la nueva solución
         this.notifyChange();
     }
 
@@ -275,10 +277,10 @@ export class TicketDetailController {
 
     cerrarTicket() {
         if (!this.currentTicketId) return;
-        if (!confirm('¿Cerrar este ticket? También se cerrará el chat asociado. Esta acción no se puede deshacer.')) return;
+        if (!confirm('¿Cerrar este ticket? El chat y la solución pasarán a solo lectura.')) return;
 
         this.model.updateStatus(this.currentTicketId, 'Resuelto');
-        this.loadTicket(this.currentTicketId); // Recargar para deshabilitar el chat
+        this.loadTicket(this.currentTicketId); 
         this.notifyChange();
     }
 }

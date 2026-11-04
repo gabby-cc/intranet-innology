@@ -139,6 +139,67 @@ export class TicketModel {
         });
     }
 
+    // ✅ Método EXCLUSIVO para guardar la solución
+    guardarSolucion(ticketId, solucionTexto) {
+        const ticket = this.getTicketById(ticketId);
+        if (ticket) {
+            // 1. Creamos el array de soluciones si no existe
+            if (!ticket.soluciones) {
+                ticket.soluciones = [];
+            }
+            
+            // 2. Guardamos la solución en SU PROPIO array
+            ticket.soluciones.push({
+                texto: solucionTexto,
+                autor: 'Laura Méndez',
+                fecha: 'Hoy, ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+            });
+
+            // 3. (Opcional) Lo registramos en el historial lateral derecho, pero NO en el chat
+            if (!this.historial[ticketId]) this.historial[ticketId] = [];
+            this.historial[ticketId].push({
+                autor: 'Laura Méndez',
+                accion: 'Solución documentada',
+                fecha: 'Hoy, ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                tipo: 'sistema' // Esto evita que salga en el chat
+            });
+            return true;
+        }
+        return false;
+    }
+
+    // ✅ NUEVO: Método para asignar un consultor
+    // ✅ Método para asignar o REASIGNAR un consultor
+    asignarResponsable(ticketId, nuevoConsultor) {
+        const ticket = this.getTicketById(ticketId);
+        if (ticket) {
+            const anterior = ticket.responsable && ticket.responsable !== 'Sin asignar' ? ticket.responsable : null;
+            
+            ticket.responsable = nuevoConsultor;
+
+            if (!this.historial[ticketId]) this.historial[ticketId] = [];
+            
+            let accionHistorial = '';
+            if (anterior && anterior !== nuevoConsultor) {
+                accionHistorial = `Reasignado de ${anterior} a ${nuevoConsultor}`;
+            } else if (!anterior) {
+                accionHistorial = `Ticket asignado a ${nuevoConsultor}`;
+            } else {
+                // Si se asigna al mismo, no hace nada nuevo
+                return true; 
+            }
+
+            this.historial[ticketId].push({
+                autor: 'Sistema',
+                accion: accionHistorial,
+                fecha: 'Hoy, ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                tipo: 'sistema'
+            });
+            return true;
+        }
+        return false;
+    }
+
   updateStatus(ticketId, newStatus) {
     const ticket = this.getTicketById(ticketId);
     if (!ticket) return null;
@@ -202,5 +263,41 @@ export class TicketModel {
     getSolutionsByTicketId(ticketId) {
         const historial = this.getHistoryByTicketId(ticketId);
         return historial.filter(h => h.tipo === 'solucion');
+    }
+
+        // ✅ Método para registrar y sumar horas
+    registrarHoras(ticketId, horas, minutos, nota) {
+        const ticket = this.getTicketById(ticketId);
+        if (ticket) {
+            // Si el ticket no tiene horas inicializadas, las creamos en 0
+            let h = ticket.horasNum ? ticket.horasNum.h : 0;
+            let m = ticket.horasNum ? ticket.horasNum.m : 0;
+
+            // Sumamos lo que el usuario ingresó
+            h += parseInt(horas) || 0;
+            m += parseInt(minutos) || 0;
+
+            // Si los minutos pasan de 60, convertimos a horas
+            if (m >= 60) {
+                h += Math.floor(m / 60);
+                m = m % 60;
+            }
+
+            // Guardamos los números y el texto formateado
+            ticket.horasNum = { h: h, m: m };
+            ticket.horas = `${h}h ${m}m`;
+
+            // Guardamos en el historial lateral
+            if (!this.historial[ticketId]) this.historial[ticketId] = [];
+            const textoNota = nota ? ` - ${nota}` : '';
+            this.historial[ticketId].push({
+                autor: 'Laura Méndez',
+                accion: `Registró ${horas}h ${minutos}m${textoNota}`,
+                fecha: 'Hoy, ' + new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+                tipo: 'sistema'
+            });
+            return true;
+        }
+        return false;
     }
 }

@@ -104,8 +104,9 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.className = 'ticket-row';
             tr.dataset.id = ticket.id;
             tr.style.cursor = 'pointer';
+            
             const priorityClass = ticket.priority === 'Alta' ? 'alta' : ticket.priority === 'Media' ? 'media' : 'baja';
-            const statusClass = ticket.status === 'En atención' ? 'atencion' : ticket.status === 'En espera' ? 'espera' : 'abierto';
+            const statusClass = ticket.status === 'En atención' ? 'atencion' : ticket.status === 'En espera' ? 'espera' : ticket.status === 'Resuelto' ? 'resuelto' : 'abierto';
             
             tr.innerHTML = `
                 <td class="ticket-id">${ticket.id}</td>
@@ -113,7 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.category}</td>
                 <td><span class="badge-priority ${priorityClass}">${ticket.priority}</span></td>
                 <td><span class="badge-status ${statusClass}">${ticket.status}</span></td>
-                <td>Daniel Rojas</td>
+                <!-- ✅ AQUÍ ESTÁ EL CAMBIO CLAVE: Cambiamos "Daniel Rojas" por la variable dinámica -->
+                <td>${ticket.responsable || 'Sin asignar'}</td>
                 <td>${ticket.date}</td>
             `;
             
@@ -189,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawer.classList.add('open');
                     overlay.classList.add('active');
 
-                    // ✅ NUEVO: Conectar el botón "Ver detalle completo" con el controlador
+                    // Conectar el botón "Ver detalle completo" con el controlador
                     const btnDetalle = document.getElementById('btn-ver-detalle-completo');
                     if (btnDetalle) {
                         btnDetalle.onclick = () => {
@@ -203,15 +205,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             tbody.appendChild(tr);
+        }); // <-- Aquí cierra el forEach
 
-            // ✅ Escuchar cuando se actualiza un ticket para refrescar la lista y el badge
-document.addEventListener('ticketUpdated', () => {
-    renderTickets();
-    updateBadge();
-});
-        });
+        // ✅ Escuchar cuando se actualiza un ticket para refrescar la lista y el badge (Fuera del forEach)
+        document.removeEventListener('ticketUpdated', window.handleTicketUpdated);
+        window.handleTicketUpdated = () => {
+            renderTickets();
+            updateBadge();
+        };
+        document.addEventListener('ticketUpdated', window.handleTicketUpdated);
     }
-
     function updateBadge() {
         const allTickets = ticketModel.getAllTickets();
         
