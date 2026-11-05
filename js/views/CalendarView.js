@@ -32,31 +32,78 @@ export class CalendarView {
         });
     }
 
-    renderCalendar(events) {
-        if(!this.calendarViewContainer) return;
+    renderCalendar(events, currentMonth, currentYear) {
+        const grid = document.getElementById('calendar-days');
+        const list = document.getElementById('calendar-events-list');
+        const title = document.getElementById('calendar-month-year');
         
-        if (this.calendarViewContainer.innerHTML.includes('Módulo en construcción') || this.calendarViewContainer.innerHTML.trim() === '') {
-            this.calendarViewContainer.innerHTML = `
-                <h1 class="page-title">Calendario</h1>
-                <div class="title-underline"></div>
-                <p style="color: var(--text-light); margin-bottom: 25px;">Reuniones agendadas con tu equipo de Innology.</p>
-                
-                <div class="table-container" style="padding: 30px;">
-                    <h2 style="font-family: var(--font-serif); font-size: 1.5rem; margin-bottom: 20px;">Octubre 2026</h2>
-                    <div id="calendar-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; text-align: center;">
-                        <div style="font-weight: bold; color: #999;">Lun</div><div style="font-weight: bold; color: #999;">Mar</div><div style="font-weight: bold; color: #999;">Mié</div><div style="font-weight: bold; color: #999;">Jue</div><div style="font-weight: bold; color: #999;">Vie</div><div style="font-weight: bold; color: #999;">Sáb</div><div style="font-weight: bold; color: #999;">Dom</div>
-                        <div style="padding: 10px; border: 1px solid #EEE;">1</div><div style="padding: 10px; border: 1px solid #EEE;">2</div><div style="padding: 10px; border: 1px solid #EEE;">3</div><div style="padding: 10px; border: 1px solid #EEE;">4</div><div style="padding: 10px; border: 1px solid #EEE;">5</div><div style="padding: 10px; border: 1px solid #EEE;">6</div><div style="padding: 10px; border: 1px solid #EEE;">7</div>
-                        <div style="padding: 10px; border: 1px solid #EEE;">8</div><div style="padding: 10px; border: 1px solid #EEE;">9</div><div style="padding: 10px; border: 1px solid #EEE;">10</div><div style="padding: 10px; border: 1px solid #EEE;">11</div><div style="padding: 10px; border: 1px solid #EEE;">12</div><div style="padding: 10px; border: 1px solid #EEE;">13</div><div style="padding: 10px; border: 1px solid #EEE;">14</div>
-                        <div style="padding: 10px; border: 1px solid #EEE;">15</div><div style="padding: 10px; border: 1px solid #EEE;">16</div><div style="padding: 10px; border: 1px solid #EEE;">17</div><div style="padding: 10px; border: 1px solid #EEE;">18</div><div style="padding: 10px; border: 1px solid #EEE; background: #FFF0F2; color: var(--primary-red); font-weight: bold;">19</div><div style="padding: 10px; border: 1px solid #EEE;">20</div><div style="padding: 10px; border: 1px solid #EEE; background: #FFF0F2; color: var(--primary-red); font-weight: bold;">21</div>
-                        <div style="padding: 10px; border: 1px solid #EEE;">22</div><div style="padding: 10px; border: 1px solid #EEE;">23</div><div style="padding: 10px; border: 1px solid #EEE;">24</div><div style="padding: 10px; border: 1px solid #EEE;">25</div><div style="padding: 10px; border: 1px solid #EEE;">26</div><div style="padding: 10px; border: 1px solid #EEE;">27</div><div style="padding: 10px; border: 1px solid #EEE;">28</div>
-                        <div style="padding: 10px; border: 1px solid #EEE; background: #FFF0F2; color: var(--primary-red); font-weight: bold;">29</div><div style="padding: 10px; border: 1px solid #EEE;">30</div><div style="padding: 10px; border: 1px solid #EEE;">31</div>
+        if (!grid || !list) return;
+
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        if (title) title.textContent = `${monthNames[currentMonth]} de ${currentYear}`;
+
+        grid.innerHTML = '';
+        list.innerHTML = '';
+
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+        let startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+
+        for (let i = 0; i < startDay; i++) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'calendar-day empty';
+            grid.appendChild(emptyDiv);
+        }
+
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        const today = new Date();
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            const dayEvents = events.filter(e => e.date === dateStr);
+            
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'calendar-day';
+            
+            if (currentMonth === today.getMonth() && currentYear === today.getFullYear() && day === today.getDate()) {
+                dayDiv.classList.add('today');
+            }
+
+            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
+            
+            if (dayEvents.length > 0) {
+                dayHTML += `<div class="calendar-day-events">`;
+                dayEvents.forEach(event => {
+                    dayHTML += `
+                        <div class="calendar-event-block" data-full-title="${event.title} (${event.time})" title="${event.title}">
+                            • ${event.title}
+                        </div>
+                    `;
+                });
+                dayHTML += `</div>`;
+            }
+
+            dayDiv.innerHTML = dayHTML;
+            grid.appendChild(dayDiv);
+
+            dayEvents.forEach(event => {
+                const item = document.createElement('div');
+                item.className = 'event-item-list';
+                item.innerHTML = `
+                    <div class="event-date">
+                        <strong>${day}</strong>
+                        <span>${monthNames[currentMonth].substring(0, 3)}</span>
                     </div>
-                    <div style="margin-top: 30px;">
-                        <h3 style="font-size: 1.1rem; margin-bottom: 15px;">Eventos del mes</h3>
-                        ${events.map(e => `<div style="padding: 10px; border-bottom: 1px solid #EEE;"><strong>${e.date}</strong> - ${e.title} (${e.time})</div>`).join('')}
+                    <div class="event-info">
+                        <h4>${event.title}</h4>
+                        <p>${event.time} · ${event.type || 'Reunión'}</p>
                     </div>
-                </div>
-            `;
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        if (list.innerHTML === '') {
+            list.innerHTML = '<p style="color:#9CA3AF;font-size:.85rem;text-align:center;padding:20px;">No hay eventos programados para este mes.</p>';
         }
     }
 }

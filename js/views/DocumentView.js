@@ -13,6 +13,7 @@ export class DocumentView {
             let iconClass = 'default';
             let iconText = 'FILE';
             
+            // Lógica de detección (la que ya tenías, está perfecta)
             if (doc.type === 'pdf') {
                 iconClass = 'pdf';
                 iconText = 'PDF';
@@ -44,10 +45,14 @@ export class DocumentView {
                 downloadBtnHTML = `<button class="btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;" onclick="alert('Simulando descarga de: ${doc.name}')">Descargar</button>`;
             }
 
+            // Aquí está el cambio visual
             tr.innerHTML = `
                 <td>
                     <div style="display: flex; align-items: center; gap: 15px;">
-                        <div class="doc-icon ${iconClass}">${iconText}</div>
+                        <!-- Cambiamos a doc-icon-badge y agregamos estilos base por si acaso -->
+                        <div class="doc-icon-badge ${iconClass}" style="width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 700; font-size: 0.75rem;">
+                            ${iconText}
+                        </div>
                         <div style="display: flex; flex-direction: column;">
                             <strong style="font-weight: 500; color: var(--text-dark);">${doc.name}</strong>
                             <span style="font-size: 0.75rem; color: var(--text-light);">${doc.size}</span>

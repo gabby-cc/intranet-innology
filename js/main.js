@@ -55,23 +55,78 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     let archivosTemporales = [];
 
-    function renderFilePreview() {
-        const preview = document.getElementById('file-preview');
-        if (!preview) return;
-        
-        preview.innerHTML = '';
-        archivosTemporales.forEach((file, index) => {
-            const tag = document.createElement('div');
-            tag.className = 'file-tag';
-            tag.style.cssText = 'display: inline-flex; align-items: center; background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; color: #333; margin: 0 8px 8px 0;';
-            tag.innerHTML = `
-                <span style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;" title="${file.name}">${file.name}</span>
-                <button type="button" onclick="window.removeTempFile(${index})" style="background: none; border: none; color: #9CA3AF; cursor: pointer; font-weight: bold; font-size: 1rem; padding: 0; line-height: 1;">✕</button>
-            `;
-            preview.appendChild(tag);
-        });
-    }
+  function renderCalendar() {
+        const calendarDays = document.getElementById('calendar-days');
+        const monthYearLabel = document.getElementById('calendar-month-year');
+        const eventsList = document.getElementById('calendar-events-list');
+        if (!calendarDays) return;
 
+        calendarDays.innerHTML = '';
+        if (eventsList) eventsList.innerHTML = '';
+
+        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        if (monthYearLabel) monthYearLabel.textContent = `${monthNames[currentMonth]} de ${currentYear}`;
+
+        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+        let startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
+
+        for (let i = 0; i < startDay; i++) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'calendar-day empty';
+            calendarDays.appendChild(emptyDiv);
+        }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            const dayEvents = events.filter(e => e.date === dateStr);
+            
+            const dayDiv = document.createElement('div');
+            dayDiv.className = 'calendar-day';
+            
+            const todayDate = new Date();
+            if (currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear() && day === todayDate.getDate()) {
+                dayDiv.classList.add('today');
+            }
+
+            // ✅ Número del día limpio arriba a la derecha (sin puntos rojos ni fondos extraños)
+            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
+            
+            // ✅ Bloques de reuniones con texto blanco y efecto hover en rojo
+          if (dayEvents.length > 0) {
+                dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; overflow: hidden;">`;
+                dayEvents.forEach(event => {
+                    dayHTML += `
+                        <div class="calendar-event-block" title="${event.title} - ${event.time}">
+                            ${event.title}
+                        </div>
+                    `;
+                });
+                dayHTML += `</div>`;
+            }
+
+            dayDiv.innerHTML = dayHTML;
+            calendarDays.appendChild(dayDiv);
+
+            // Listado completo de la derecha
+            dayEvents.forEach(event => {
+                if (!eventsList) return;
+                const item = document.createElement('div');
+                item.className = 'event-item';
+                item.innerHTML = `
+                    <div class="event-date">
+                        <strong>${day}</strong>
+                        <span>${monthNames[currentMonth].substring(0, 3).toLowerCase()}</span>
+                    </div>
+                    <div class="event-info">
+                        <h4>${event.title}</h4>
+                        <p>${event.time}, Reunión</p>
+                    </div>
+                `;
+                eventsList.appendChild(item);
+            });
+        }
+    }
     window.removeTempFile = function(index) {
         archivosTemporales.splice(index, 1);
         renderFilePreview();
@@ -114,7 +169,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.category}</td>
                 <td><span class="badge-priority ${priorityClass}">${ticket.priority}</span></td>
                 <td><span class="badge-status ${statusClass}">${ticket.status}</span></td>
-                <!-- ✅ AQUÍ ESTÁ EL CAMBIO CLAVE: Cambiamos "Daniel Rojas" por la variable dinámica -->
                 <td>${ticket.responsable || 'Sin asignar'}</td>
                 <td>${ticket.date}</td>
             `;
@@ -205,9 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             tbody.appendChild(tr);
-        }); // <-- Aquí cierra el forEach
+        });
 
-        // ✅ Escuchar cuando se actualiza un ticket para refrescar la lista y el badge (Fuera del forEach)
         document.removeEventListener('ticketUpdated', window.handleTicketUpdated);
         window.handleTicketUpdated = () => {
             renderTickets();
@@ -215,20 +268,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         document.addEventListener('ticketUpdated', window.handleTicketUpdated);
     }
+
     function updateBadge() {
         const allTickets = ticketModel.getAllTickets();
-        
-        // 1. Contar TODOS los tickets que NO estén "Resuelto"
         const abiertos = allTickets.filter(t => t.status !== 'Resuelto').length;
         
-        // 2. Actualizar el badge rojo del menú lateral
         const badgeMenu = document.querySelector('.menu-item[data-target="view-tickets"] .badge');
         if (badgeMenu) {
             badgeMenu.textContent = abiertos;
             badgeMenu.style.display = abiertos > 0 ? 'inline-block' : 'none';
         }
 
-        // 3. Actualizar las tarjetas de resumen superiores
         const countAbiertos = document.getElementById('count-abiertos');
         if (countAbiertos) {
             countAbiertos.textContent = abiertos;
@@ -562,19 +612,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayDiv.classList.add('today');
             }
 
-            let dayHTML = `<div style="text-align: right; margin-bottom: 5px;"><span class="calendar-day-number">${day}</span></div>`;
-
-            dayEvents.forEach(event => {
-                dayHTML += `
-                    <div class="calendar-event-chip" title="${event.title}">
-                        <strong>${event.time}</strong> ${event.title}
-                    </div>
-                `;
-            });
+            // Número del día arriba a la derecha
+            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
+            
+            // ✅ Bloques de reuniones en rojo corporativo que se intensifican al pasar el cursor
+            if (dayEvents.length > 0) {
+                dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px; overflow: hidden;">`;
+                dayEvents.forEach(event => {
+                    dayHTML += `
+                        <div class="calendar-event-block" style="background-color: #E11D48; color: #FFFFFF; padding: 4px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#9F1239'" onmouseout="this.style.backgroundColor='#E11D48'" title="${event.title} - ${event.time}">
+                            ${event.title}
+                        </div>
+                    `;
+                });
+                dayHTML += `</div>`;
+            }
 
             dayDiv.innerHTML = dayHTML;
             calendarDays.appendChild(dayDiv);
 
+            // Listado de la derecha con todas las actividades completas
             dayEvents.forEach(event => {
                 if (!eventsList) return;
                 const item = document.createElement('div');
@@ -612,7 +669,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCalendar();
         });
     }
-
     renderCalendar();
 
     // 9. LÓGICA PARA AGENDAR REUNIÓN
@@ -630,7 +686,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1); 
             const minDate = tomorrow.toISOString().split('T')[0];
-            
             const dateInput = document.getElementById('meeting-date');
             dateInput.min = minDate; 
             dateInput.value = minDate; 
@@ -642,13 +697,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeMeetingModal = () => { if (meetingModal) meetingModal.classList.remove('active'); };
     if (btnCerrarMeeting) btnCerrarMeeting.addEventListener('click', closeMeetingModal);
     if (btnCancelarMeeting) btnCancelarMeeting.addEventListener('click', closeMeetingModal);
-
     if (btnSubmitMeeting) {
         btnSubmitMeeting.addEventListener('click', () => {
             const title = document.getElementById('meeting-title').value.trim();
             const date = document.getElementById('meeting-date').value;
             const time = document.getElementById('meeting-time').value;
-
             if (title === '' || date === '') {
                 alert('Por favor, llena el título y la fecha.');
                 return;
@@ -662,7 +715,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('No puedes agendar una reunión para hoy ni para días pasados. Debe ser con al menos 1 día de anticipación.');
                 return;
             }
-
             events.push({
                 id: Date.now(),
                 date: date,
@@ -673,6 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMonth = selectedDate.getMonth();
             currentYear = selectedDate.getFullYear();
             renderCalendar();
+            closeMeetingModal();
 
             const notifList = document.querySelector('.notif-list');
             const notifDot = document.querySelector('.notification-dot');
@@ -681,7 +734,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (notifList.innerHTML.includes('No hay notificaciones nuevas')) {
                     notifList.innerHTML = '';
                 }
-
                 const newNotif = document.createElement('div');
                 newNotif.className = 'notif-item';
                 newNotif.setAttribute('data-target', 'view-calendario');
@@ -692,29 +744,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>Agendada para el ${date} a las ${time}</span>
                     </div>
                 `;
-
                 newNotif.addEventListener('click', function() {
                     this.style.opacity = '0';
                     this.style.transform = 'translateX(20px)';
                     setTimeout(() => this.remove(), 300);
                     switchView('view-calendario');
                 });
-
-                notifList.insertBefore(newNotif, notifList.firstChild);
-                if (notifDot) notifDot.style.display = 'block';
+                notifList.prepend(newNotif);
+                if (notifDot) notifDot.style.display = 'inline-block';
             }
-
-            closeMeetingModal();
         });
     }
-
-    // 10. LÓGICA DEL ENLACE "VER CALENDARIO" DEL INICIO
-    const linkVerCalendario = document.getElementById('link-ver-calendario');
-    if (linkVerCalendario) {
-        linkVerCalendario.addEventListener('click', (e) => {
-            e.preventDefault();
-            switchView('view-calendario');
-        });
-    }
-
 });
