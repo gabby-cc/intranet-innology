@@ -60,13 +60,13 @@ export class TicketDetailController {
         if (btnCancelarAssign) btnCancelarAssign.addEventListener('click', () => this.cerrarModalAsignacion());
         if (btnConfirmarAssign) btnConfirmarAssign.addEventListener('click', () => this.confirmarAsignacion());
 
-        // ✅ NUEVO: Escuchar botón Registrar Horas
+        // Botón Registrar Horas
         const btnRegistrarHoras = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Registrar Horas'));
         if (btnRegistrarHoras) {
             btnRegistrarHoras.addEventListener('click', () => this.abrirModalHoras());
         }
 
-        // ✅ NUEVO: Botones del Modal de Horas
+        // Botones del Modal de Horas
         const btnCerrarModalHours = document.getElementById('btn-cerrar-modal-hours');
         const btnCancelarHours = document.getElementById('btn-cancelar-hours');
         const btnConfirmarHours = document.getElementById('btn-confirmar-hours');
@@ -195,10 +195,29 @@ export class TicketDetailController {
             this.cerrarModalAsignacion();
             this.loadTicket(this.currentTicketId); 
             this.notifyChange();
+
+            // ✅ NOTIFICACIONES AL ASIGNAR
+            if (window.notify) {
+                window.notify({
+                    titulo: 'Nuevo Ticket Asignado',
+                    mensaje: `Se te ha asignado el ticket ${this.currentTicketId}.`,
+                    destinatario: consultor,
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: this.currentTicketId
+                });
+                window.notify({
+                    titulo: 'Ticket Actualizado',
+                    mensaje: `El ticket ${this.currentTicketId} ha sido asignado a ${consultor}.`,
+                    destinatario: 'Laura Méndez',
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: this.currentTicketId
+                });
+            }
         }
     }
 
-    // ✅ NUEVO: Métodos para el Modal de Horas
     abrirModalHoras() {
         const ticket = this.model.getTicketById(this.currentTicketId);
         if (ticket && ticket.status === 'Resuelto') return;
@@ -233,7 +252,7 @@ export class TicketDetailController {
         if (this.currentTicketId) {
             this.model.registrarHoras(this.currentTicketId, h, m, nota);
             this.cerrarModalHoras();
-            this.loadTicket(this.currentTicketId); // Recargar para ver el total actualizado
+            this.loadTicket(this.currentTicketId);
             this.notifyChange(); 
         }
     }
@@ -317,8 +336,29 @@ export class TicketDetailController {
         const ticket = this.model.getTicketById(this.currentTicketId);
         if (ticket && ticket.status === 'Resuelto') return;
         if (!confirm('¿Cerrar este ticket? Todo pasará a solo lectura.')) return;
+        
         this.model.updateStatus(this.currentTicketId, 'Resuelto');
         this.loadTicket(this.currentTicketId); 
         this.notifyChange();
+
+        // ✅ NOTIFICACIONES AL CERRAR
+        if (window.notify) {
+            window.notify({
+                titulo: 'Ticket Cerrado',
+                mensaje: `El ticket ${this.currentTicketId} ha sido cerrado.`,
+                destinatario: 'Laura Méndez',
+                tipo: 'ticket',
+                targetView: 'view-tickets',
+                targetId: this.currentTicketId
+            });
+            window.notify({
+                titulo: 'Ticket Cerrado',
+                mensaje: `El ticket ${this.currentTicketId} ha sido cerrado.`,
+                destinatario: 'Administrador',
+                tipo: 'ticket',
+                targetView: 'view-tickets',
+                targetId: this.currentTicketId
+            });
+        }
     }
 }

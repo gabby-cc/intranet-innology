@@ -412,3 +412,150 @@ body:not(.login-body) { display: flex; }
 .event-item-list .event-date { background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 12px; text-align: center; min-width: 60px; height: fit-content; }
 .event-item-list .event-date strong { display: block; font-size: 1.2rem; color: var(--primary-red); }
 .event-item-list .event-date span { font-size: 0.75rem; color: #6B7280; text-transform: uppercase; font-weight: 600; }
+
+
+/* --- ESTILOS EXTRA PARA GESTIÓN DE USUARIOS --- */
+.bg-red { background-color: var(--primary-red) !important; }
+.bg-blue { background-color: #3B82F6 !important; }
+.bg-gray { background-color: #6B7280 !important; }
+
+/* Botones de acción en la tabla (Editar/Desactivar) */
+.btn-action {
+    background: #F3F4F6;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+    margin-right: 5px;
+}
+.btn-action:hover { background: #E5E7EB; }
+
+/* --- ESTILOS PRO PARA LOS BOTONES DE ACCIÓN DE USUARIOS --- */
+.action-buttons-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-icon-action {
+    background: transparent;
+    border: 1px solid #E5E7EB;
+    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #6B7280;
+    transition: all 0.2s ease-in-out;
+    padding: 0;
+}
+
+/* Efecto hover general para Editar */
+.btn-icon-action:hover {
+    background-color: #F3F4F6;
+    color: var(--text-dark);
+    border-color: #D1D5DB;
+}
+
+/* Efecto hover para el botón de desactivar (peligro) */
+.btn-icon-action.btn-danger-hover:hover {
+    background-color: #FEE2E2;
+    color: #DC2626;
+    border-color: #FCA5A5;
+}
+
+/* Efecto hover para el botón de activar (éxito) */
+.btn-icon-action.btn-success-hover:hover {
+    background-color: #D1FAE5;
+    color: #059669;
+    border-color: #6EE7B7;
+}
+
+/* Ajuste de color de los iconos SVG */
+.btn-icon-action svg {
+    fill: currentColor;
+}
+
+.notification-dot {
+    display: none; /* Oculto por defecto, se activa con JS */
+}
+
+/* --- DESPLEGABLE CON CHECKBOXES (ESTILO PRO) --- */
+.dropdown-check-list {
+    position: relative;
+    width: 100%;
+    display: block;
+}
+
+.dropdown-check-list .anchor {
+    display: block;
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    background-color: #FFFFFF;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #4B5563;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: relative;
+}
+
+.dropdown-check-list .anchor:after {
+    content: '▼';
+    font-size: 0.7rem;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9CA3AF;
+}
+
+.dropdown-check-list .items {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    list-style: none;
+    padding: 5px 0;
+    margin: 5px 0 0 0;
+    display: none; /* Oculto por defecto */
+    z-index: 100;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.dropdown-check-list .items.visible {
+    display: block; /* Se muestra cuando tiene la clase 'visible' */
+}
+
+.dropdown-check-list .items li {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.dropdown-check-list .items li:hover {
+    background: #F3F4F6;
+}
+
+.dropdown-check-list .items label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin: 0;
+    font-weight: normal;
+    font-size: 0.9rem;
+    color: #374151;
+}

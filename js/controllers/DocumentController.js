@@ -63,16 +63,36 @@ export class DocumentController {
                 }
 
                 const file = fileInput.files[0];
+                const nombreParaNotificar = nameInput || file.name;
+                
                 this.model.addDocument(nameInput, folderSelect, file);
                 
                 // Volver a aplicar los filtros para que aparezca el nuevo
                 applyFilters();
                 
+                // ✅ NOTIFICACIÓN AL ADMIN Y AL CLIENTE
+                if (window.notify) {
+                    window.notify({
+                        titulo: 'Nuevo Documento Subido',
+                        mensaje: `Se ha subido el documento: ${nombreParaNotificar}`,
+                        destinatario: 'Administrador',
+                        tipo: 'documento',
+                        targetView: 'view-documentos'
+                    });
+                    window.notify({
+                        titulo: 'Nuevo Documento Disponible',
+                        mensaje: `Ya puedes descargar: ${nombreParaNotificar}`,
+                        destinatario: 'Laura Méndez',
+                        tipo: 'documento',
+                        targetView: 'view-documentos'
+                    });
+                }
+                
                 closeModal();
             });
         }
 
-                // Escuchar cuando se agrega un documento desde un ticket
+        // Escuchar cuando se agrega un documento desde un ticket
         document.addEventListener('documentAdded', () => {
             this.view.renderDocuments(this.model.getAllDocuments());
         });

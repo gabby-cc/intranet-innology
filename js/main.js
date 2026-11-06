@@ -1,7 +1,8 @@
 import { DashboardController } from './controllers/DashboardController.js';
 import { DocumentController } from './controllers/DocumentController.js';
 import { GlobalSearchController } from './controllers/GlobalSearchController.js';
-import { TicketDetailController } from './controllers/TicketDetailController.js'; // ✅ NUEVO
+import { TicketDetailController } from './controllers/TicketDetailController.js';
+import { NotificationController } from './controllers/NotificationController.js';
 
 import { TicketModel } from './models/TicketModel.js';
 import { DocumentModel } from './models/DocumentModel.js';
@@ -22,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.hash = targetId.replace('view-', '');
     }
 
-    // ✅ Exponer switchView globalmente para que los controladores puedan usarlo
     window.switchView = switchView;
 
     menuItems.forEach(item => {
@@ -46,87 +46,89 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('view-inicio')) new DashboardController();
     if (document.getElementById('view-documentos')) new DocumentController(documentModel);
     new GlobalSearchController(ticketModel, documentModel, null);
-    
-    // ✅ NUEVO: Inicializar el controlador de detalle de ticket
     window.ticketDetailController = new TicketDetailController(ticketModel);
+    
+    // ✅ INICIALIZAMOS NOTIFICACIONES
+    new NotificationController();
 
+    if (document.getElementById('view-usuarios')) {
+        import('./controllers/UserController.js')
+            .then(module => new module.UserController())
+            .catch(error => console.warn("⚠️ Módulo de usuarios no cargado:", error));
+    }
+
+
+    // =============================================
+    // ✅ NUEVO: Lógica de los Accesos Rápidos del Inicio
+    // =============================================
+    
+    // 1. Botón "Crear un ticket" (Redirige y abre el modal)
+    const btnQuickTicket = document.getElementById('btn-quick-ticket');
+    if (btnQuickTicket) {
+        btnQuickTicket.addEventListener('click', () => {
+            switchView('view-tickets'); 
+            
+            const modal = document.getElementById('ticket-modal');
+            if (modal) {
+                document.getElementById('new-ticket-title').value = '';
+                document.getElementById('new-ticket-description').value = '';
+                document.getElementById('new-ticket-type').value = 'Funcional';
+                document.getElementById('conditional-fields').style.display = 'block';
+                document.getElementById('group-funcional').style.display = 'block';
+                document.getElementById('group-tecnico').style.display = 'none';
+                
+                modal.classList.add('active');
+            }
+        });
+    }
+
+    // 2. Botón "Ver mis documentos" (Solo redirige)
+    const btnQuickDocs = document.getElementById('btn-quick-docs');
+    if (btnQuickDocs) {
+        btnQuickDocs.addEventListener('click', () => {
+            switchView('view-documentos');
+        });
+    }
+
+    // 3. Botón "Ver reuniones" (Solo redirige)
+    const btnQuickCalendar = document.getElementById('btn-quick-calendar');
+    if (btnQuickCalendar) {
+        btnQuickCalendar.addEventListener('click', () => {
+            switchView('view-calendario');
+        });
+    }
+
+        // 4. Enlace "Ver calendario" en Próximos Eventos
+    const linkVerCalendario = document.getElementById('link-ver-calendario');
+    if (linkVerCalendario) {
+        linkVerCalendario.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('view-calendario');
+        });
+    }
+    
     // =============================================
     // 4. ARCHIVOS TEMPORALES
     // =============================================
     let archivosTemporales = [];
 
-  function renderCalendar() {
-        const calendarDays = document.getElementById('calendar-days');
-        const monthYearLabel = document.getElementById('calendar-month-year');
-        const eventsList = document.getElementById('calendar-events-list');
-        if (!calendarDays) return;
-
-        calendarDays.innerHTML = '';
-        if (eventsList) eventsList.innerHTML = '';
-
-        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-        if (monthYearLabel) monthYearLabel.textContent = `${monthNames[currentMonth]} de ${currentYear}`;
-
-        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        let startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
-
-        for (let i = 0; i < startDay; i++) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'calendar-day empty';
-            calendarDays.appendChild(emptyDiv);
-        }
-
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            const dayEvents = events.filter(e => e.date === dateStr);
-            
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'calendar-day';
-            
-            const todayDate = new Date();
-            if (currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear() && day === todayDate.getDate()) {
-                dayDiv.classList.add('today');
-            }
-
-            // ✅ Número del día limpio arriba a la derecha (sin puntos rojos ni fondos extraños)
-            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
-            
-            // ✅ Bloques de reuniones con texto blanco y efecto hover en rojo
-          if (dayEvents.length > 0) {
-                dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px; overflow: hidden;">`;
-                dayEvents.forEach(event => {
-                    dayHTML += `
-                        <div class="calendar-event-block" title="${event.title} - ${event.time}">
-                            ${event.title}
-                        </div>
-                    `;
-                });
-                dayHTML += `</div>`;
-            }
-
-            dayDiv.innerHTML = dayHTML;
-            calendarDays.appendChild(dayDiv);
-
-            // Listado completo de la derecha
-            dayEvents.forEach(event => {
-                if (!eventsList) return;
-                const item = document.createElement('div');
-                item.className = 'event-item';
-                item.innerHTML = `
-                    <div class="event-date">
-                        <strong>${day}</strong>
-                        <span>${monthNames[currentMonth].substring(0, 3).toLowerCase()}</span>
-                    </div>
-                    <div class="event-info">
-                        <h4>${event.title}</h4>
-                        <p>${event.time}, Reunión</p>
-                    </div>
-                `;
-                eventsList.appendChild(item);
-            });
-        }
+    function renderFilePreview() {
+        const preview = document.getElementById('file-preview');
+        if (!preview) return;
+        
+        preview.innerHTML = '';
+        archivosTemporales.forEach((file, index) => {
+            const tag = document.createElement('div');
+            tag.className = 'file-tag';
+            tag.style.cssText = 'display: inline-flex; align-items: center; background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; color: #333; margin: 0 8px 8px 0;';
+            tag.innerHTML = `
+                <span style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px;" title="${file.name}">${file.name}</span>
+                <button type="button" onclick="window.removeTempFile(${index})" style="background: none; border: none; color: #9CA3AF; cursor: pointer; font-weight: bold; font-size: 1rem; padding: 0; line-height: 1;">✕</button>
+            `;
+            preview.appendChild(tag);
+        });
     }
+
     window.removeTempFile = function(index) {
         archivosTemporales.splice(index, 1);
         renderFilePreview();
@@ -193,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     priorityBadge.textContent = ticket.priority;
                     priorityBadge.className = 'badge-priority ' + priorityClass;
 
-                    // Historial
                     const timeline = document.getElementById('drawer-timeline');
                     if (timeline) {
                         timeline.innerHTML = '';
@@ -209,7 +210,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Archivos adjuntos en el ticket
                     const filesList = document.getElementById('drawer-files-list');
                     const filesSection = document.getElementById('drawer-files-section');
                     if (filesList && filesSection) {
@@ -245,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawer.classList.add('open');
                     overlay.classList.add('active');
 
-                    // Conectar el botón "Ver detalle completo" con el controlador
                     const btnDetalle = document.getElementById('btn-ver-detalle-completo');
                     if (btnDetalle) {
                         btnDetalle.onclick = () => {
@@ -318,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ABRIR MODAL
+    // ABRIR MODAL TICKET
     const btnNuevoTicket = document.getElementById('btn-nuevo-ticket');
     if (btnNuevoTicket) {
         btnNuevoTicket.addEventListener('click', (e) => {
@@ -341,14 +340,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // CERRAR MODAL
+    // CERRAR MODAL TICKET
     const closeModal = () => document.getElementById('ticket-modal').classList.remove('active');
     const btnCerrarModal = document.getElementById('btn-cerrar-modal');
     const btnCancelarModal = document.getElementById('btn-cancelar-modal');
     if (btnCerrarModal) btnCerrarModal.addEventListener('click', closeModal);
     if (btnCancelarModal) btnCancelarModal.addEventListener('click', closeModal);
 
-    // CAMPOS CONDICIONALES
+    // CAMPOS CONDICIONALES TICKET
     const typeSelect = document.getElementById('new-ticket-type');
     if (typeSelect) {
         typeSelect.addEventListener('change', (e) => {
@@ -423,6 +422,26 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.dispatchEvent(new CustomEvent('documentAdded'));
             
+            // ✅ NOTIFICACIÓN AL CLIENTE Y AL ADMIN
+            if (window.notify) {
+                window.notify({
+                    titulo: 'Ticket Creado',
+                    mensaje: `Tu ticket ${newTicket.id} ha sido registrado.`,
+                    destinatario: 'Laura Méndez',
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: newTicket.id
+                });
+                window.notify({
+                    titulo: 'Nuevo Ticket',
+                    mensaje: `El cliente creó el ticket ${newTicket.id}`,
+                    destinatario: 'Administrador',
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: newTicket.id
+                });
+            }
+            
             document.getElementById('new-ticket-title').value = '';
             document.getElementById('new-ticket-description').value = '';
             archivosTemporales = [];
@@ -434,51 +453,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('group-tecnico').style.display = 'none';
 
             closeModal();
-        });
-    }
-
-    // =============================================
-    // 5.1 LÓGICA PARA AGREGAR COMENTARIOS AL HISTORIAL
-    // =============================================
-    const btnEnviarComentario = document.getElementById('btn-enviar-comentario');
-    const commentInput = document.getElementById('comment-input');
-
-    if (btnEnviarComentario && commentInput) {
-        btnEnviarComentario.addEventListener('click', () => {
-            const commentText = commentInput.value.trim();
-            
-            if (commentText === '') {
-                alert('Por favor, escribe un comentario antes de enviarlo.');
-                return;
-            }
-
-            const currentTicketId = document.getElementById('drawer-id').textContent;
-            if (!currentTicketId || currentTicketId === 'TK-0000') {
-                alert('No hay un ticket seleccionado.');
-                return;
-            }
-
-            ticketModel.addComment(currentTicketId, commentText);
-
-            const timeline = document.getElementById('drawer-timeline');
-            if (timeline) {
-                timeline.innerHTML = '';
-                (ticketModel.getHistoryByTicketId(currentTicketId) || []).forEach(item => {
-                    const newItem = document.createElement('div');
-                    newItem.className = 'timeline-item';
-                    const textContent = item.tipo === 'comentario' 
-                        ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` 
-                        : `<strong>${item.accion}</strong>`;
-                    
-                    newItem.innerHTML = `
-                        <div class="timeline-dot ${item.tipo === 'comentario' ? 'active' : ''}"></div>
-                        <div class="timeline-content">${textContent}<span>${item.autor}, ${item.fecha}</span></div>
-                    `;
-                    timeline.appendChild(newItem);
-                });
-            }
-
-            commentInput.value = '';
         });
     }
 
@@ -507,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 7. Lógica de Notificaciones
+    // 7. NOTIFICACIONES (La campanita y el toggle)
     const notifContainer = document.getElementById('notifications-container');
     const notifDropdown = document.getElementById('notifications-dropdown');
     const bellIcon = document.getElementById('bell-icon');
@@ -518,39 +492,6 @@ document.addEventListener('DOMContentLoaded', () => {
             notifDropdown.classList.toggle('active');
         });
     }
-
-    const notifItems = document.querySelectorAll('.notif-item');
-    notifItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const targetView = item.getAttribute('data-target');
-            const ticketId = item.getAttribute('data-ticket');
-
-            notifDropdown.classList.remove('active');
-            item.style.opacity = '0';
-            item.style.transform = 'translateX(20px)';
-            item.style.transition = 'all 0.3s ease';
-
-            if (targetView) switchView(targetView);
-
-            if (targetView === 'view-tickets' && ticketId) {
-                setTimeout(() => {
-                    const row = document.querySelector(`#tickets-tbody tr[data-id="${ticketId}"]`);
-                    if (row) row.click();
-                }, 100);
-            }
-
-            setTimeout(() => {
-                item.remove();
-                const remainingNotifs = document.querySelectorAll('.notif-item');
-                if (remainingNotifs.length === 0) {
-                    const dot = document.querySelector('.notification-dot');
-                    if (dot) dot.style.display = 'none';
-                    const notifList = document.querySelector('.notif-list');
-                    if (notifList) notifList.innerHTML = '<div style="padding: 20px; text-align: center; color: #9CA3AF; font-size: 0.9rem;">No hay notificaciones nuevas.</div>';
-                }
-            }, 300);
-        });
-    });
 
     document.addEventListener('click', (e) => {
         if (notifContainer && !notifContainer.contains(e.target)) {
@@ -612,10 +553,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayDiv.classList.add('today');
             }
 
-            // Número del día arriba a la derecha
             let dayHTML = `<div class="calendar-day-number">${day}</div>`;
             
-            // ✅ Bloques de reuniones en rojo corporativo que se intensifican al pasar el cursor
             if (dayEvents.length > 0) {
                 dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px; overflow: hidden;">`;
                 dayEvents.forEach(event => {
@@ -631,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dayDiv.innerHTML = dayHTML;
             calendarDays.appendChild(dayDiv);
 
-            // Listado de la derecha con todas las actividades completas
             dayEvents.forEach(event => {
                 if (!eventsList) return;
                 const item = document.createElement('div');
@@ -727,31 +665,22 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCalendar();
             closeMeetingModal();
 
-            const notifList = document.querySelector('.notif-list');
-            const notifDot = document.querySelector('.notification-dot');
-            
-            if (notifList) {
-                if (notifList.innerHTML.includes('No hay notificaciones nuevas')) {
-                    notifList.innerHTML = '';
-                }
-                const newNotif = document.createElement('div');
-                newNotif.className = 'notif-item';
-                newNotif.setAttribute('data-target', 'view-calendario');
-                newNotif.innerHTML = `
-                    <div class="notif-icon system">CAL</div>
-                    <div class="notif-text">
-                        <strong>Nueva reunión: ${title}</strong>
-                        <span>Agendada para el ${date} a las ${time}</span>
-                    </div>
-                `;
-                newNotif.addEventListener('click', function() {
-                    this.style.opacity = '0';
-                    this.style.transform = 'translateX(20px)';
-                    setTimeout(() => this.remove(), 300);
-                    switchView('view-calendario');
+            // ✅ NOTIFICACIÓN DE REUNIÓN
+            if (window.notify) {
+                window.notify({
+                    titulo: 'Nueva Reunión',
+                    mensaje: `${title} agendada para el ${date} a las ${time}`,
+                    destinatario: 'Laura Méndez',
+                    tipo: 'reunion',
+                    targetView: 'view-calendario'
                 });
-                notifList.prepend(newNotif);
-                if (notifDot) notifDot.style.display = 'inline-block';
+                window.notify({
+                    titulo: 'Nueva Reunión',
+                    mensaje: `${title} agendada por el cliente.`,
+                    destinatario: 'Administrador',
+                    tipo: 'reunion',
+                    targetView: 'view-calendario'
+                });
             }
         });
     }

@@ -1,53 +1,76 @@
 export class UserModel {
     constructor() {
-        // Simulamos una base de datos de usuarios
         this.users = [
             {
-                id: 1,
+                id: "USR-001",
                 nombre: "Laura Méndez",
                 correo: "laura@innology.com",
+                password: "123",
                 rol: "Administrador",
                 perfil: "-",
                 modulos: [],
                 paises: [],
-                estado: "Activo"
+                empresa: "",
+                paisSolicitante: "",
+                estado: "Activo",
+                fechaAlta: "2026-10-20"
             },
             {
-                id: 2,
+                id: "USR-002",
                 nombre: "Daniel Rojas",
                 correo: "daniel@innology.com",
+                password: "123",
                 rol: "Consultor",
                 perfil: "Técnico",
                 modulos: ["Ventas", "Inventario"],
                 paises: ["México", "Colombia"],
-                estado: "Activo"
+                empresa: "",
+                paisSolicitante: "",
+                estado: "Activo",
+                fechaAlta: "2026-10-21"
             }
         ];
     }
 
-    getAllUsers() {
-        return this.users;
-    }
+    getAllUsers() { return this.users; }
+    getUserById(id) { return this.users.find(u => u.id === id); }
 
-    getUserById(id) {
-        return this.users.find(u => u.id === parseInt(id));
+    checkEmailExists(correo, excludeId = null) {
+        return this.users.some(u => u.correo.toLowerCase() === correo.toLowerCase() && u.id !== excludeId);
     }
 
     createUser(userData) {
-        const newId = this.users.length > 0 ? Math.max(...this.users.map(u => u.id)) + 1 : 1;
+        const lastNumber = this.users.length > 0 
+            ? Math.max(...this.users.map(u => parseInt(u.id.split('-')[1]))) 
+            : 0;
+        const newId = `USR-${String(lastNumber + 1).padStart(3, '0')}`;
+        
+        const today = new Date();
+        const fechaAlta = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
         const newUser = {
             id: newId,
             ...userData,
-            estado: 'Activo'
+            fechaAlta: fechaAlta
         };
+        
         this.users.push(newUser);
         return newUser;
     }
 
     updateUser(id, updatedData) {
-        const index = this.users.findIndex(u => u.id === parseInt(id));
+        const index = this.users.findIndex(u => u.id === id);
         if (index !== -1) {
-            this.users[index] = { ...this.users[index], ...updatedData };
+            const existingUser = this.users[index];
+            const newPassword = updatedData.password && updatedData.password.trim() !== '' 
+                ? updatedData.password 
+                : existingUser.password;
+
+            this.users[index] = { 
+                ...existingUser, 
+                ...updatedData,
+                password: newPassword
+            };
             return true;
         }
         return false;

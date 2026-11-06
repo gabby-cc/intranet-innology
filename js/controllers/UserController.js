@@ -5,6 +5,7 @@ export class UserController {
     constructor() {
         this.model = new UserModel();
         this.view = new UserView();
+        this.editingId = null;
         
         this.init();
     }
@@ -12,19 +13,15 @@ export class UserController {
     init() {
         this.renderTable();
 
-        // Escuchar el botón "Nuevo Usuario"
         const btnNew = document.getElementById('btn-nuevo-usuario');
-        if (btnNew) {
-            btnNew.addEventListener('click', () => this.openModal());
-        }
+        if (btnNew) btnNew.addEventListener('click', () => this.openModal());
 
-        // Escuchar cambio de rol para mostrar/ocultar campos de consultor
+        // ✅ Escuchar cambio de rol para mostrar/ocultar secciones
         const selectRol = document.getElementById('user-rol');
         if (selectRol) {
-            selectRol.addEventListener('change', (e) => this.view.toggleConsultantFields(e.target.value));
+            selectRol.addEventListener('change', (e) => this.view.toggleRoleFields(e.target.value));
         }
 
-        // Escuchar el formulario
         const form = document.getElementById('user-form');
         if (form) {
             form.addEventListener('submit', (e) => {
@@ -33,7 +30,11 @@ export class UserController {
             });
         }
 
-        // Escuchar clics en la tabla (Editar / Activar-Desactivar)
+        const btnClose = document.getElementById('btn-cerrar-modal-user');
+        const btnCancel = document.getElementById('btn-cancelar-modal-user');
+        if (btnClose) btnClose.addEventListener('click', () => this.closeModal());
+        if (btnCancel) btnCancel.addEventListener('click', () => this.closeModal());
+
         const tableBody = document.getElementById('users-tbody');
         if (tableBody) {
             tableBody.addEventListener('click', (e) => {
@@ -52,11 +53,45 @@ export class UserController {
             });
         }
 
-        // Botones del modal
-        const btnClose = document.getElementById('btn-cerrar-modal-user');
-        const btnCancel = document.getElementById('btn-cancelar-modal-user');
-        if (btnClose) btnClose.addEventListener('click', () => this.closeModal());
-        if (btnCancel) btnCancel.addEventListener('click', () => this.closeModal());
+        // ✅ NUEVO: Configurar los desplegables de checkboxes
+        this.setupDropdown('dropdown-modulos');
+        this.setupDropdown('dropdown-paises');
+
+        // Cerrar desplegables al hacer clic fuera
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-check-list .items').forEach(list => {
+                list.classList.remove('visible');
+            });
+        });
+    }
+
+    // ✅ Función auxiliar para manejar los desplegables de checkboxes
+    setupDropdown(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        const anchor = container.querySelector('.anchor');
+        const items = container.querySelector('.items');
+        if (!anchor || !items) return;
+        
+        // Abrir/cerrar al hacer clic en el anchor
+        anchor.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Cerrar otros desplegables
+            document.querySelectorAll('.dropdown-check-list .items').forEach(list => {
+                if (list !== items) list.classList.remove('visible');
+            });
+            items.classList.toggle('visible');
+        });
+
+        // Actualizar el texto del anchor cuando se seleccionan checkboxes
+        const checkboxes = items.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const selected = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+                anchor.textContent = selected.length > 0 ? selected.join(', ') : 'Seleccionar...';
+            });
+        });
     }
 
     renderTable() {
@@ -70,11 +105,16 @@ export class UserController {
         const title = document.getElementById('modal-user-title');
 
         if (userId) {
+            this.editingId = userId;
             title.textContent = 'Editar Usuario';
             const user = this.model.getUserById(userId);
-            if (user) this.view.fillUserForm(user);
+            if (user) {
+                this.view.fillUserForm(user);
+            }
         } else {
+            this.editingId = null;
             title.textContent = 'Nuevo Usuario';
+            this.view.toggleRoleFields('');
         }
 
         if (modal) modal.classList.add('active');
@@ -83,41 +123,74 @@ export class UserController {
     closeModal() {
         const modal = document.getElementById('user-modal');
         if (modal) modal.classList.remove('active');
+        this.editingId = null;
     }
 
     saveUser() {
-        const id = document.getElementById('user-id').value;
         const nombre = document.getElementById('user-name').value.trim();
         const correo = document.getElementById('user-email').value.trim();
+        const password = document.getElementById('user-password').value;
+        const confirmPassword = document.getElementById('user-password-confirm').value;
         const rol = document.getElementById('user-rol').value;
+        const estado = document.getElementById('user-estado').value;
         
         let perfil = '-';
         let modulos = [];
         let paises = [];
+        let empresa = '';
+        let paisSolicitante = '';
 
-        if (rol === 'Consultor') {
-            perfil = document.getElementById('user-perfil').value;
-            // Aquí podrías capturar los módulos y países si tuvieras los inputs
-        }
-
-        if (!nombre || !correo || !rol) {
-            alert('Por favor, llena los campos obligatorios.');
+        // Validaciones
+        if (!nombre || !correo || !rol || !estado) {
+            alert('Por favor, llena todos los campos obligatorios (*).');
             return;
         }
 
-        const userData = { nombre, correo, rol, perfil, modulos, paises };
+        if ((password || confirmPassword) && password !== confirmPassword) {
+            alert('❌ Las contraseñas no coinciden. Por favor, verifica.');
+            return;
+        }
 
-        if (id) {
-            // Editar
-            this.model.updateUser(id, userData);
+        if (this.model.checkEmailExists(correo, this.editingId)) {
+            alert('❌ Este correo electrónico ya está registrado. Usa otro.');
+            return;
+        }
+
+        // Capturar datos según el rol
+        if (rol === 'Consultor') {
+            perfil = document.getElementById('user-perfil').value;
+            
+            // ✅ Capturar los checkboxes marcados de módulos
+            const modulosCheckboxes = document.querySelectorAll('#dropdown-modulos .items input[type="checkbox"]:checked');
+            modulos = Array.from(modulosCheckboxes).map(cb => cb.value);
+            
+            // ✅ Capturar los checkboxes marcados de países
+            const paisesCheckboxes = document.querySelectorAll('#dropdown-paises .items input[type="checkbox"]:checked');
+            paises = Array.from(paisesCheckboxes).map(cb => cb.value);
+
+        } else if (rol === 'Solicitante') {
+            empresa = document.getElementById('user-empresa').value.trim();
+            paisSolicitante = document.getElementById('user-pais-solicitante').value;
+        }
+
+        const userData = { 
+            nombre, correo, password, rol, perfil, modulos, paises, empresa, paisSolicitante, estado 
+        };
+
+        if (this.editingId) {
+            this.model.updateUser(this.editingId, userData);
+            alert('✅ Usuario actualizado exitosamente.');
         } else {
-            // Crear
+            if (!password) {
+                alert('La contraseña es obligatoria para un nuevo usuario.');
+                return;
+            }
             this.model.createUser(userData);
+            alert('✅ ¡Usuario creado exitosamente!');
         }
 
         this.renderTable();
         this.closeModal();
-        alert('Usuario guardado exitosamente.');
     }
 
     toggleStatus(id) {

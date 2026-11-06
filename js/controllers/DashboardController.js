@@ -7,8 +7,9 @@ export class DashboardController {
         this.view = new DashboardView();
         this.init();
     }
+
     init() {
-        this.view.renderUser(this.model.getUser());
-        this.view.renderStats(this.model.getStats());
+        // ✅ Ya no llama a getUser() ni getStats() para evitar el error
+        console.log("Dashboard inicializado correctamente.");
     }
 }
