@@ -3,8 +3,10 @@ import { NotificationModel } from '../models/NotificationModel.js';
 export class NotificationController {
     constructor() {
         this.model = new NotificationModel();
-        this.currentUser = 'Laura Méndez'; 
-        this.currentRole = 'Cliente';
+        // ✅ Leemos el usuario de sessionStorage
+        const user = JSON.parse(sessionStorage.getItem('innology_user'));
+        this.currentUser = user ? user.nombre : 'Laura Méndez'; 
+        this.currentRole = user ? user.rol : 'Cliente';
         
         this.container = document.getElementById('notifications-dropdown');
         this.list = this.container.querySelector('.notif-list');
@@ -34,7 +36,7 @@ export class NotificationController {
                 // 1. Marcar como leída en el modelo
                 this.model.markAsRead(notifId);
                 
-                // 2. Actualizar la vista (esto limpia el HTML y redibuja)
+                // 2. Actualizar la vista (forzando limpieza)
                 this.render();
                 this.container.classList.remove('active');
 
@@ -56,7 +58,7 @@ export class NotificationController {
     render() {
         if (!this.list) return;
         
-        // ✅ Limpiar TODO el HTML antes de dibujar las nuevas
+        // ✅ LIMPIEZA TOTAL: Borra todo el HTML antes de dibujar
         this.list.innerHTML = '';
         
         const userNotifs = this.model.getByUser(this.currentUser, this.currentRole);
@@ -78,6 +80,8 @@ export class NotificationController {
             let iconText = 'SYS';
             if (notif.tipo === 'ticket') { iconClass = 'ticket'; iconText = 'TK'; }
             if (notif.tipo === 'usuario') { iconClass = 'doc'; iconText = 'USR'; }
+            if (notif.tipo === 'documento') { iconClass = 'doc'; iconText = 'DOC'; }
+            if (notif.tipo === 'reunion') { iconClass = 'system'; iconText = 'CAL'; }
 
             div.innerHTML = `
                 <div class="notif-icon ${iconClass}">${iconText}</div>

@@ -1,35 +1,63 @@
 export class UserModel {
     constructor() {
-        this.users = [
-            {
-                id: "USR-001",
-                nombre: "Laura Méndez",
-                correo: "laura@innology.com",
-                password: "123",
-                rol: "Administrador",
-                perfil: "-",
-                modulos: [],
-                paises: [],
-                empresa: "",
-                paisSolicitante: "",
-                estado: "Activo",
-                fechaAlta: "2026-10-20"
-            },
-            {
-                id: "USR-002",
-                nombre: "Daniel Rojas",
-                correo: "daniel@innology.com",
-                password: "123",
-                rol: "Consultor",
-                perfil: "Técnico",
-                modulos: ["Ventas", "Inventario"],
-                paises: ["México", "Colombia"],
-                empresa: "",
-                paisSolicitante: "",
-                estado: "Activo",
-                fechaAlta: "2026-10-21"
-            }
-        ];
+        // ✅ 1. Intentamos cargar los usuarios guardados en el navegador
+        const guardados = localStorage.getItem('innology_usuarios');
+        
+        if (guardados) {
+            this.users = JSON.parse(guardados);
+        } else {
+            // 2. Si no hay nada guardado, creamos los de prueba por defecto
+            this.users = [
+                {
+                    id: "USR-001",
+                    nombre: "Laura Méndez",
+                    correo: "laura@innology.com",
+                    password: "demo123",
+                    rol: "Administrador",
+                    perfil: "-",
+                    modulos: [],
+                    paises: [],
+                    empresa: "",
+                    paisSolicitante: "",
+                    estado: "Activo",
+                    fechaAlta: "2026-10-20"
+                },
+                {
+                    id: "USR-002",
+                    nombre: "Daniel Rojas",
+                    correo: "daniel@innology.com",
+                    password: "123",
+                    rol: "Consultor",
+                    perfil: "Técnico",
+                    modulos: ["Ventas", "Inventario"],
+                    paises: ["México", "Colombia"],
+                    empresa: "",
+                    paisSolicitante: "",
+                    estado: "Activo",
+                    fechaAlta: "2026-10-21"
+                },
+                {
+                    id: "USR-003",
+                    nombre: "Carlos Pérez",
+                    correo: "carlos@innology.com",
+                    password: "123",
+                    rol: "Solicitante",
+                    perfil: "-",
+                    modulos: [],
+                    paises: [],
+                    empresa: "Grupo Atlas",
+                    paisSolicitante: "México",
+                    estado: "Activo",
+                    fechaAlta: "2026-10-22"
+                }
+            ];
+            this.guardarUsuarios(); // Guardamos los por defecto
+        }
+    }
+
+    // ✅ 3. Nuevo método para guardar los cambios en el almacenamiento
+    guardarUsuarios() {
+        localStorage.setItem('innology_usuarios', JSON.stringify(this.users));
     }
 
     getAllUsers() { return this.users; }
@@ -55,6 +83,7 @@ export class UserModel {
         };
         
         this.users.push(newUser);
+        this.guardarUsuarios(); // ✅ Guardamos
         return newUser;
     }
 
@@ -71,6 +100,7 @@ export class UserModel {
                 ...updatedData,
                 password: newPassword
             };
+            this.guardarUsuarios(); // ✅ Guardamos
             return true;
         }
         return false;
@@ -80,6 +110,7 @@ export class UserModel {
         const user = this.getUserById(id);
         if (user) {
             user.estado = user.estado === 'Activo' ? 'Inactivo' : 'Activo';
+            this.guardarUsuarios(); // ✅ Guardamos
             return true;
         }
         return false;

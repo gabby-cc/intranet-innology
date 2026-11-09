@@ -256,7 +256,8 @@
                         <span class="badge-priority" id="dt-priority" style="background: #FEE2E2; color: #DC2626;">Alta</span>
                     </div>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <!-- ✅ CORREGIDO: Contenedor de acciones solo para ADMIN -->
+                <div id="dt-admin-actions" style="display: none; gap: 10px;">
                     <button class="btn-primary" style="width: auto;" id="btn-cerrar-ticket">Cerrar ticket</button>
                 </div>
             </div>
@@ -297,11 +298,21 @@
                 </div>
 
                 <div>
+                    <!-- ✅ CORREGIDO: Asignación con botón solo para ADMIN y aviso para cliente/consultor -->
                     <div class="card" style="margin-bottom: 20px; padding: 20px;">
                         <h3 style="font-size: 1.1rem; border-bottom: 1px solid #E5E7EB; padding-bottom: 10px; margin-bottom: 15px;">Asignación</h3>
                         <p style="font-size: 0.9rem; margin-bottom: 5px;"><span style="color: #6B7280;">Responsable:</span> <strong id="dt-responsable">Sin asignar</strong></p>
                         <p style="font-size: 0.9rem; margin-bottom: 15px;"><span style="color: #6B7280;">Perfil:</span> <strong id="dt-perfil">-</strong></p>
-                        <button class="btn-primary" style="width: 100%; background: #374151;">Asignar / Reasignar</button>
+
+                        <!-- ✅ Solo ADMIN ve este botón -->
+                        <button class="btn-primary" id="btn-asignar-consultor" style="width: 100%; background: #374151; display: none;">
+                            Asignar / Reasignar
+                        </button>
+
+                        <!-- ✅ Aviso para cliente y consultor -->
+                        <p id="dt-asignacion-aviso" style="font-size: 0.8rem; color: #9CA3AF; font-style: italic; margin: 0; padding-top: 10px; border-top: 1px solid #F3F4F6;">
+                            La asignación del responsable es gestionada por el administrador.
+                        </p>
                     </div>
 
                     <div class="card" style="margin-bottom: 20px; padding: 20px;">
@@ -311,10 +322,17 @@
                         <p style="font-size: 0.9rem; margin-bottom: 5px;"><span style="color: #6B7280;">Plazo:</span> <strong style="color: #DC2626;" id="dt-plazo">1 día hábil</strong></p>
                     </div>
 
-                    <div class="card" style="margin-bottom: 20px; padding: 20px;">
+                    <!-- ✅ CORREGIDO: Tarjeta de Horas con id de card y desglose por consultor -->
+                    <div class="card" id="dt-card-horas" style="margin-bottom: 20px; padding: 20px;">
                         <h3 style="font-size: 1.1rem; border-bottom: 1px solid #E5E7EB; padding-bottom: 10px; margin-bottom: 15px;">Horas Trabajadas</h3>
                         <p style="font-size: 0.9rem; margin-bottom: 15px;"><span style="color: #6B7280;">Total Horas:</span> <strong id="dt-total-horas">0h 0m</strong></p>
-                        <button class="btn-secondary" style="width: 100%;">Registrar Horas</button>
+
+                        <!-- ✅ Desglose por consultor (colaboración) -->
+                        <div id="dt-desglose-horas" style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; margin-bottom: 15px; max-height: 200px; overflow-y: auto; display: none;">
+                            <p style="color:#9CA3AF;font-size:.85rem;text-align:center;padding:10px;">Sin horas registradas aún.</p>
+                        </div>
+
+                        <button class="btn-secondary" id="btn-registrar-horas" style="width: 100%;">Registrar Horas</button>
                     </div>
 
                     <div class="card" style="padding: 20px;">

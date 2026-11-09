@@ -9,6 +9,41 @@ import { DocumentModel } from './models/DocumentModel.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
+// =============================================
+// ✅ 0. SISTEMA DE ROLES Y PERMISOS
+// =============================================
+let currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
+
+// 🔒 NUEVO: Si no hay usuario O el usuario está inactivo, lo sacamos
+if (!currentUser || currentUser.estado === 'Inactivo') {
+    sessionStorage.removeItem('innology_user');
+    sessionStorage.removeItem('innology_auth');
+    alert('⛔ Tu cuenta ha sido desactivada o la sesión expiró.');
+    window.location.href = 'index.html';
+    return;
+}
+
+window.currentUser = currentUser;
+console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.rol})`);
+
+    // Ocultar menú de Usuarios si no es Administrador
+    const menuUsuarios = document.querySelector('.menu-item[data-target="view-usuarios"]');
+    if (menuUsuarios) {
+        menuUsuarios.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
+    }
+
+    // Mostrar datos del usuario en la barra superior
+    const userNameEl = document.querySelector('.user-text strong');
+    const userRoleEl = document.querySelector('.user-text span');
+    const avatarEl = document.querySelector('.avatar');
+    
+    if (userNameEl) userNameEl.textContent = currentUser.nombre;
+    if (userRoleEl) userRoleEl.textContent = currentUser.rol;
+    if (avatarEl) {
+        const initials = currentUser.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        avatarEl.textContent = initials;
+    }
+
     // 1. Lógica de Pestañas
     const menuItems = document.querySelectorAll('.menu-item');
     const views = document.querySelectorAll('.view-section');
@@ -46,7 +81,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('view-inicio')) new DashboardController();
     if (document.getElementById('view-documentos')) new DocumentController(documentModel);
     new GlobalSearchController(ticketModel, documentModel, null);
-    window.ticketDetailController = new TicketDetailController(ticketModel);
+
+    // ✅ CORREGIDO: Pasamos el rol y el nombre reales del usuario logueado
+    // Mapeo: "Administrador" → "admin", "Consultor" → "consultor", "Solicitante" → "cliente"
+    const rolMap = {
+        'Administrador': 'admin',
+        'Consultor': 'consultor',
+        'Solicitante': 'cliente'
+    };
+    const userRoleNormalized = rolMap[currentUser.rol] || 'cliente';
+    window.ticketDetailController = new TicketDetailController(ticketModel, userRoleNormalized, currentUser.nombre);
+    console.log(`🔧 TicketDetailController inicializado con rol: ${userRoleNormalized} | usuario: ${currentUser.nombre}`);
     
     // ✅ INICIALIZAMOS NOTIFICACIONES
     new NotificationController();
@@ -62,12 +107,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ✅ NUEVO: Lógica de los Accesos Rápidos del Inicio
     // =============================================
     
-    // 1. Botón "Crear un ticket" (Redirige y abre el modal)
     const btnQuickTicket = document.getElementById('btn-quick-ticket');
     if (btnQuickTicket) {
         btnQuickTicket.addEventListener('click', () => {
             switchView('view-tickets'); 
-            
             const modal = document.getElementById('ticket-modal');
             if (modal) {
                 document.getElementById('new-ticket-title').value = '';
@@ -76,29 +119,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('conditional-fields').style.display = 'block';
                 document.getElementById('group-funcional').style.display = 'block';
                 document.getElementById('group-tecnico').style.display = 'none';
-                
                 modal.classList.add('active');
             }
         });
     }
 
-    // 2. Botón "Ver mis documentos" (Solo redirige)
     const btnQuickDocs = document.getElementById('btn-quick-docs');
     if (btnQuickDocs) {
-        btnQuickDocs.addEventListener('click', () => {
-            switchView('view-documentos');
-        });
+        btnQuickDocs.addEventListener('click', () => switchView('view-documentos'));
     }
 
-    // 3. Botón "Ver reuniones" (Solo redirige)
     const btnQuickCalendar = document.getElementById('btn-quick-calendar');
     if (btnQuickCalendar) {
-        btnQuickCalendar.addEventListener('click', () => {
-            switchView('view-calendario');
-        });
+        btnQuickCalendar.addEventListener('click', () => switchView('view-calendario'));
     }
 
-        // 4. Enlace "Ver calendario" en Próximos Eventos
     const linkVerCalendario = document.getElementById('link-ver-calendario');
     if (linkVerCalendario) {
         linkVerCalendario.addEventListener('click', (e) => {
@@ -149,14 +184,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // 5. LÓGICA DE TICKETS
+    // 5. LÓGICA DE TICKETS (CON FILTRO POR ROL)
     // =============================================
     function renderTickets() {
         const tbody = document.getElementById('tickets-tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
         
-        ticketModel.getAllTickets().forEach(ticket => {
+        // ✅ FILTRO POR ROL
+        let ticketsAMostrar = ticketModel.getAllTickets();
+        
+        if (currentUser.rol === 'Solicitante') {
+            ticketsAMostrar = ticketsAMostrar.filter(t => t.solicitante === currentUser.nombre);
+        } else if (currentUser.rol === 'Consultor') {
+            ticketsAMostrar = ticketsAMostrar.filter(t => t.responsable === currentUser.nombre);
+        }
+        // El Administrador ve todos (no filtramos)
+
+        ticketsAMostrar.forEach(ticket => {
             const tr = document.createElement('tr');
             tr.className = 'ticket-row';
             tr.dataset.id = ticket.id;
@@ -195,10 +240,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     priorityBadge.textContent = ticket.priority;
                     priorityBadge.className = 'badge-priority ' + priorityClass;
 
+                    // ✅ CÓDIGO CORREGIDO: Filtra las horas si no es admin
                     const timeline = document.getElementById('drawer-timeline');
                     if (timeline) {
                         timeline.innerHTML = '';
-                        (ticketModel.getHistoryByTicketId(ticket.id) || []).forEach(item => {
+                        
+                        // Obtenemos el historial y lo filtramos
+                        const historialTicket = ticketModel.getHistoryByTicketId(ticket.id) || [];
+                        const esAdmin = currentUser.rol === 'Administrador';
+                        
+                        const historialFiltrado = historialTicket.filter(item => {
+                            // Si es registro de horas y NO es admin, lo ocultamos
+                            if (item.tipo === 'horas' && !esAdmin) return false;
+                            return true;
+                        });
+
+                        historialFiltrado.forEach(item => {
                             const newItem = document.createElement('div');
                             newItem.className = 'timeline-item';
                             const textContent = item.tipo === 'comentario' ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` : `<strong>${item.accion}</strong>`;
@@ -269,7 +326,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateBadge() {
-        const allTickets = ticketModel.getAllTickets();
+        // ✅ El badge se filtra según el rol también
+        let allTickets = ticketModel.getAllTickets();
+        
+        if (currentUser.rol === 'Solicitante') {
+            allTickets = allTickets.filter(t => t.solicitante === currentUser.nombre);
+        } else if (currentUser.rol === 'Consultor') {
+            allTickets = allTickets.filter(t => t.responsable === currentUser.nombre);
+        }
+
         const abiertos = allTickets.filter(t => t.status !== 'Resuelto').length;
         
         const badgeMenu = document.querySelector('.menu-item[data-target="view-tickets"] .badge');
@@ -403,9 +468,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ambiente: ambiente,
                 contexto: '',
                 medioRecepcion: 'Portal',
-                enlaceExterno: ''
+                enlaceExterno: '',
+                solicitante: currentUser.nombre, // ✅ AQUÍ SE GUARDA EL NOMBRE DEL QUE CREA
+                empresa: currentUser.empresa || 'Grupo Atlas' // ✅ Y SU EMPRESA
             };
 
+            
             const newTicket = ticketModel.createTicket(title, category, priority, description, archivosTemporales, extraData);
             
             archivosTemporales.forEach(fileObj => {
@@ -427,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.notify({
                     titulo: 'Ticket Creado',
                     mensaje: `Tu ticket ${newTicket.id} ha sido registrado.`,
-                    destinatario: 'Laura Méndez',
+                    destinatario: currentUser.nombre,
                     tipo: 'ticket',
                     targetView: 'view-tickets',
                     targetId: newTicket.id
@@ -477,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             sessionStorage.removeItem('innology_auth');
+            sessionStorage.removeItem('innology_user');
             window.location.href = 'index.html';
         });
     }
@@ -670,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.notify({
                     titulo: 'Nueva Reunión',
                     mensaje: `${title} agendada para el ${date} a las ${time}`,
-                    destinatario: 'Laura Méndez',
+                    destinatario: currentUser.nombre,
                     tipo: 'reunion',
                     targetView: 'view-calendario'
                 });

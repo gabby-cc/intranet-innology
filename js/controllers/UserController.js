@@ -178,6 +178,23 @@ export class UserController {
         };
 
         if (this.editingId) {
+            // ✅ NUEVO: Validar si están intentando desactivar al último admin (o a sí mismos) desde el modal
+            const currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
+            const userToEdit = this.model.getUserById(this.editingId);
+            
+            if (userToEdit.rol === 'Administrador' && userData.estado === 'Inactivo' && userToEdit.estado === 'Activo') {
+                const adminsActivos = this.model.getAllUsers().filter(u => u.rol === 'Administrador' && u.estado === 'Activo');
+                
+                if (currentUser && userToEdit.id === currentUser.id) {
+                    alert('⛔ No puedes desactivar tu propia cuenta de administrador.');
+                    return;
+                }
+                if (adminsActivos.length <= 1) {
+                    alert('⛔ No puedes desactivar al último administrador activo del sistema.');
+                    return;
+                }
+            }
+
             this.model.updateUser(this.editingId, userData);
             alert('✅ Usuario actualizado exitosamente.');
         } else {
@@ -194,6 +211,28 @@ export class UserController {
     }
 
     toggleStatus(id) {
+        // ✅ NUEVO: Protecciones para no quedarnos sin administradores
+        const userToToggle = this.model.getUserById(id);
+        const currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
+
+        if (!userToToggle) return;
+
+        // 1. Evitar que un admin se desactive a sí mismo
+        if (currentUser && userToToggle.id === currentUser.id && userToToggle.rol === 'Administrador') {
+            alert('⛔ No puedes desactivar tu propia cuenta de administrador.');
+            return;
+        }
+
+        // 2. Evitar desactivar al último administrador activo del sistema
+        if (userToToggle.rol === 'Administrador' && userToToggle.estado === 'Activo') {
+            const adminsActivos = this.model.getAllUsers().filter(u => u.rol === 'Administrador' && u.estado === 'Activo');
+            if (adminsActivos.length <= 1) {
+                alert('⛔ No puedes desactivar al último administrador activo del sistema. Debe haber al menos uno.');
+                return;
+            }
+        }
+
+        // Si pasa las validaciones, procedemos
         if (confirm('¿Estás seguro de cambiar el estado de este usuario?')) {
             this.model.toggleStatus(id);
             this.renderTable();
