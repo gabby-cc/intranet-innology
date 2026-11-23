@@ -1,13 +1,49 @@
 import { DashboardController } from './controllers/DashboardController.js';
 import { DocumentController } from './controllers/DocumentController.js';
 import { GlobalSearchController } from './controllers/GlobalSearchController.js';
-import { TicketDetailController } from './controllers/TicketDetailController.js'; // ✅ NUEVO
+import { TicketDetailController } from './controllers/TicketDetailController.js';
+import { NotificationController } from './controllers/NotificationController.js';
 
 import { TicketModel } from './models/TicketModel.js';
 import { DocumentModel } from './models/DocumentModel.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
+// =============================================
+// ✅ 0. SISTEMA DE ROLES Y PERMISOS
+// =============================================
+let currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
+
+// 🔒 NUEVO: Si no hay usuario O el usuario está inactivo, lo sacamos
+if (!currentUser || currentUser.estado === 'Inactivo') {
+    sessionStorage.removeItem('innology_user');
+    sessionStorage.removeItem('innology_auth');
+    alert('⛔ Tu cuenta ha sido desactivada o la sesión expiró.');
+    window.location.href = 'index.html';
+    return;
+}
+
+window.currentUser = currentUser;
+console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.rol})`);
+
+    // Ocultar menú de Usuarios si no es Administrador
+    const menuUsuarios = document.querySelector('.menu-item[data-target="view-usuarios"]');
+    if (menuUsuarios) {
+        menuUsuarios.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
+    }
+
+    // Mostrar datos del usuario en la barra superior
+    const userNameEl = document.querySelector('.user-text strong');
+    const userRoleEl = document.querySelector('.user-text span');
+    const avatarEl = document.querySelector('.avatar');
+    
+    if (userNameEl) userNameEl.textContent = currentUser.nombre;
+    if (userRoleEl) userRoleEl.textContent = currentUser.rol;
+    if (avatarEl) {
+        const initials = currentUser.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        avatarEl.textContent = initials;
+    }
+
     // 1. Lógica de Pestañas
     const menuItems = document.querySelectorAll('.menu-item');
     const views = document.querySelectorAll('.view-section');
@@ -22,7 +58,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.hash = targetId.replace('view-', '');
     }
 
-    // ✅ Exponer switchView globalmente para que los controladores puedan usarlo
     window.switchView = switchView;
 
     menuItems.forEach(item => {
@@ -46,10 +81,67 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('view-inicio')) new DashboardController();
     if (document.getElementById('view-documentos')) new DocumentController(documentModel);
     new GlobalSearchController(ticketModel, documentModel, null);
-    
-    // ✅ NUEVO: Inicializar el controlador de detalle de ticket
-    window.ticketDetailController = new TicketDetailController(ticketModel);
 
+    // ✅ CORREGIDO: Pasamos el rol y el nombre reales del usuario logueado
+    // Mapeo: "Administrador" → "admin", "Consultor" → "consultor", "Solicitante" → "cliente"
+    const rolMap = {
+        'Administrador': 'admin',
+        'Consultor': 'consultor',
+        'Solicitante': 'cliente'
+    };
+    const userRoleNormalized = rolMap[currentUser.rol] || 'cliente';
+    window.ticketDetailController = new TicketDetailController(ticketModel, userRoleNormalized, currentUser.nombre);
+    console.log(`🔧 TicketDetailController inicializado con rol: ${userRoleNormalized} | usuario: ${currentUser.nombre}`);
+    
+    // ✅ INICIALIZAMOS NOTIFICACIONES
+    new NotificationController();
+
+    if (document.getElementById('view-usuarios')) {
+        import('./controllers/UserController.js')
+            .then(module => new module.UserController())
+            .catch(error => console.warn("⚠️ Módulo de usuarios no cargado:", error));
+    }
+
+
+    // =============================================
+    // ✅ NUEVO: Lógica de los Accesos Rápidos del Inicio
+    // =============================================
+    
+    const btnQuickTicket = document.getElementById('btn-quick-ticket');
+    if (btnQuickTicket) {
+        btnQuickTicket.addEventListener('click', () => {
+            switchView('view-tickets'); 
+            const modal = document.getElementById('ticket-modal');
+            if (modal) {
+                document.getElementById('new-ticket-title').value = '';
+                document.getElementById('new-ticket-description').value = '';
+                document.getElementById('new-ticket-type').value = 'Funcional';
+                document.getElementById('conditional-fields').style.display = 'block';
+                document.getElementById('group-funcional').style.display = 'block';
+                document.getElementById('group-tecnico').style.display = 'none';
+                modal.classList.add('active');
+            }
+        });
+    }
+
+    const btnQuickDocs = document.getElementById('btn-quick-docs');
+    if (btnQuickDocs) {
+        btnQuickDocs.addEventListener('click', () => switchView('view-documentos'));
+    }
+
+    const btnQuickCalendar = document.getElementById('btn-quick-calendar');
+    if (btnQuickCalendar) {
+        btnQuickCalendar.addEventListener('click', () => switchView('view-calendario'));
+    }
+
+    const linkVerCalendario = document.getElementById('link-ver-calendario');
+    if (linkVerCalendario) {
+        linkVerCalendario.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('view-calendario');
+        });
+    }
+    
     // =============================================
     // 4. ARCHIVOS TEMPORALES
     // =============================================
@@ -92,14 +184,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    // 5. LÓGICA DE TICKETS
+    // 5. LÓGICA DE TICKETS (CON FILTRO POR ROL)
     // =============================================
     function renderTickets() {
         const tbody = document.getElementById('tickets-tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
         
-        ticketModel.getAllTickets().forEach(ticket => {
+        // ✅ FILTRO POR ROL
+        let ticketsAMostrar = ticketModel.getAllTickets();
+        
+        if (currentUser.rol === 'Solicitante') {
+            ticketsAMostrar = ticketsAMostrar.filter(t => t.solicitante === currentUser.nombre);
+        } else if (currentUser.rol === 'Consultor') {
+            ticketsAMostrar = ticketsAMostrar.filter(t => t.responsable === currentUser.nombre);
+        }
+        // El Administrador ve todos (no filtramos)
+
+        ticketsAMostrar.forEach(ticket => {
             const tr = document.createElement('tr');
             tr.className = 'ticket-row';
             tr.dataset.id = ticket.id;
@@ -114,7 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td>${ticket.category}</td>
                 <td><span class="badge-priority ${priorityClass}">${ticket.priority}</span></td>
                 <td><span class="badge-status ${statusClass}">${ticket.status}</span></td>
-                <!-- ✅ AQUÍ ESTÁ EL CAMBIO CLAVE: Cambiamos "Daniel Rojas" por la variable dinámica -->
                 <td>${ticket.responsable || 'Sin asignar'}</td>
                 <td>${ticket.date}</td>
             `;
@@ -139,11 +240,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     priorityBadge.textContent = ticket.priority;
                     priorityBadge.className = 'badge-priority ' + priorityClass;
 
-                    // Historial
+                    // ✅ CÓDIGO CORREGIDO: Filtra las horas si no es admin
                     const timeline = document.getElementById('drawer-timeline');
                     if (timeline) {
                         timeline.innerHTML = '';
-                        (ticketModel.getHistoryByTicketId(ticket.id) || []).forEach(item => {
+                        
+                        // Obtenemos el historial y lo filtramos
+                        const historialTicket = ticketModel.getHistoryByTicketId(ticket.id) || [];
+                        const esAdmin = currentUser.rol === 'Administrador';
+                        
+                        const historialFiltrado = historialTicket.filter(item => {
+                            // Si es registro de horas y NO es admin, lo ocultamos
+                            if (item.tipo === 'horas' && !esAdmin) return false;
+                            return true;
+                        });
+
+                        historialFiltrado.forEach(item => {
                             const newItem = document.createElement('div');
                             newItem.className = 'timeline-item';
                             const textContent = item.tipo === 'comentario' ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` : `<strong>${item.accion}</strong>`;
@@ -155,7 +267,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
 
-                    // Archivos adjuntos en el ticket
                     const filesList = document.getElementById('drawer-files-list');
                     const filesSection = document.getElementById('drawer-files-section');
                     if (filesList && filesSection) {
@@ -191,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawer.classList.add('open');
                     overlay.classList.add('active');
 
-                    // Conectar el botón "Ver detalle completo" con el controlador
                     const btnDetalle = document.getElementById('btn-ver-detalle-completo');
                     if (btnDetalle) {
                         btnDetalle.onclick = () => {
@@ -205,9 +315,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             tbody.appendChild(tr);
-        }); // <-- Aquí cierra el forEach
+        });
 
-        // ✅ Escuchar cuando se actualiza un ticket para refrescar la lista y el badge (Fuera del forEach)
         document.removeEventListener('ticketUpdated', window.handleTicketUpdated);
         window.handleTicketUpdated = () => {
             renderTickets();
@@ -215,20 +324,25 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         document.addEventListener('ticketUpdated', window.handleTicketUpdated);
     }
+
     function updateBadge() {
-        const allTickets = ticketModel.getAllTickets();
+        // ✅ El badge se filtra según el rol también
+        let allTickets = ticketModel.getAllTickets();
         
-        // 1. Contar TODOS los tickets que NO estén "Resuelto"
+        if (currentUser.rol === 'Solicitante') {
+            allTickets = allTickets.filter(t => t.solicitante === currentUser.nombre);
+        } else if (currentUser.rol === 'Consultor') {
+            allTickets = allTickets.filter(t => t.responsable === currentUser.nombre);
+        }
+
         const abiertos = allTickets.filter(t => t.status !== 'Resuelto').length;
         
-        // 2. Actualizar el badge rojo del menú lateral
         const badgeMenu = document.querySelector('.menu-item[data-target="view-tickets"] .badge');
         if (badgeMenu) {
             badgeMenu.textContent = abiertos;
             badgeMenu.style.display = abiertos > 0 ? 'inline-block' : 'none';
         }
 
-        // 3. Actualizar las tarjetas de resumen superiores
         const countAbiertos = document.getElementById('count-abiertos');
         if (countAbiertos) {
             countAbiertos.textContent = abiertos;
@@ -268,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ABRIR MODAL
+    // ABRIR MODAL TICKET
     const btnNuevoTicket = document.getElementById('btn-nuevo-ticket');
     if (btnNuevoTicket) {
         btnNuevoTicket.addEventListener('click', (e) => {
@@ -291,14 +405,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // CERRAR MODAL
+    // CERRAR MODAL TICKET
     const closeModal = () => document.getElementById('ticket-modal').classList.remove('active');
     const btnCerrarModal = document.getElementById('btn-cerrar-modal');
     const btnCancelarModal = document.getElementById('btn-cancelar-modal');
     if (btnCerrarModal) btnCerrarModal.addEventListener('click', closeModal);
     if (btnCancelarModal) btnCancelarModal.addEventListener('click', closeModal);
 
-    // CAMPOS CONDICIONALES
+    // CAMPOS CONDICIONALES TICKET
     const typeSelect = document.getElementById('new-ticket-type');
     if (typeSelect) {
         typeSelect.addEventListener('change', (e) => {
@@ -354,9 +468,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ambiente: ambiente,
                 contexto: '',
                 medioRecepcion: 'Portal',
-                enlaceExterno: ''
+                enlaceExterno: '',
+                solicitante: currentUser.nombre, // ✅ AQUÍ SE GUARDA EL NOMBRE DEL QUE CREA
+                empresa: currentUser.empresa || 'Grupo Atlas' // ✅ Y SU EMPRESA
             };
 
+            
             const newTicket = ticketModel.createTicket(title, category, priority, description, archivosTemporales, extraData);
             
             archivosTemporales.forEach(fileObj => {
@@ -373,6 +490,26 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.dispatchEvent(new CustomEvent('documentAdded'));
             
+            // ✅ NOTIFICACIÓN AL CLIENTE Y AL ADMIN
+            if (window.notify) {
+                window.notify({
+                    titulo: 'Ticket Creado',
+                    mensaje: `Tu ticket ${newTicket.id} ha sido registrado.`,
+                    destinatario: currentUser.nombre,
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: newTicket.id
+                });
+                window.notify({
+                    titulo: 'Nuevo Ticket',
+                    mensaje: `El cliente creó el ticket ${newTicket.id}`,
+                    destinatario: 'Administrador',
+                    tipo: 'ticket',
+                    targetView: 'view-tickets',
+                    targetId: newTicket.id
+                });
+            }
+            
             document.getElementById('new-ticket-title').value = '';
             document.getElementById('new-ticket-description').value = '';
             archivosTemporales = [];
@@ -384,51 +521,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('group-tecnico').style.display = 'none';
 
             closeModal();
-        });
-    }
-
-    // =============================================
-    // 5.1 LÓGICA PARA AGREGAR COMENTARIOS AL HISTORIAL
-    // =============================================
-    const btnEnviarComentario = document.getElementById('btn-enviar-comentario');
-    const commentInput = document.getElementById('comment-input');
-
-    if (btnEnviarComentario && commentInput) {
-        btnEnviarComentario.addEventListener('click', () => {
-            const commentText = commentInput.value.trim();
-            
-            if (commentText === '') {
-                alert('Por favor, escribe un comentario antes de enviarlo.');
-                return;
-            }
-
-            const currentTicketId = document.getElementById('drawer-id').textContent;
-            if (!currentTicketId || currentTicketId === 'TK-0000') {
-                alert('No hay un ticket seleccionado.');
-                return;
-            }
-
-            ticketModel.addComment(currentTicketId, commentText);
-
-            const timeline = document.getElementById('drawer-timeline');
-            if (timeline) {
-                timeline.innerHTML = '';
-                (ticketModel.getHistoryByTicketId(currentTicketId) || []).forEach(item => {
-                    const newItem = document.createElement('div');
-                    newItem.className = 'timeline-item';
-                    const textContent = item.tipo === 'comentario' 
-                        ? `<p style="margin-top: 5px; font-size: 0.85rem; color: #333; background: #F3F4F6; padding: 8px; border-radius: 4px;">${item.accion}</p>` 
-                        : `<strong>${item.accion}</strong>`;
-                    
-                    newItem.innerHTML = `
-                        <div class="timeline-dot ${item.tipo === 'comentario' ? 'active' : ''}"></div>
-                        <div class="timeline-content">${textContent}<span>${item.autor}, ${item.fecha}</span></div>
-                    `;
-                    timeline.appendChild(newItem);
-                });
-            }
-
-            commentInput.value = '';
         });
     }
 
@@ -453,11 +545,12 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutBtn.addEventListener('click', (e) => {
             e.preventDefault();
             sessionStorage.removeItem('innology_auth');
+            sessionStorage.removeItem('innology_user');
             window.location.href = 'index.html';
         });
     }
 
-    // 7. Lógica de Notificaciones
+    // 7. NOTIFICACIONES (La campanita y el toggle)
     const notifContainer = document.getElementById('notifications-container');
     const notifDropdown = document.getElementById('notifications-dropdown');
     const bellIcon = document.getElementById('bell-icon');
@@ -468,39 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
             notifDropdown.classList.toggle('active');
         });
     }
-
-    const notifItems = document.querySelectorAll('.notif-item');
-    notifItems.forEach(item => {
-        item.addEventListener('click', () => {
-            const targetView = item.getAttribute('data-target');
-            const ticketId = item.getAttribute('data-ticket');
-
-            notifDropdown.classList.remove('active');
-            item.style.opacity = '0';
-            item.style.transform = 'translateX(20px)';
-            item.style.transition = 'all 0.3s ease';
-
-            if (targetView) switchView(targetView);
-
-            if (targetView === 'view-tickets' && ticketId) {
-                setTimeout(() => {
-                    const row = document.querySelector(`#tickets-tbody tr[data-id="${ticketId}"]`);
-                    if (row) row.click();
-                }, 100);
-            }
-
-            setTimeout(() => {
-                item.remove();
-                const remainingNotifs = document.querySelectorAll('.notif-item');
-                if (remainingNotifs.length === 0) {
-                    const dot = document.querySelector('.notification-dot');
-                    if (dot) dot.style.display = 'none';
-                    const notifList = document.querySelector('.notif-list');
-                    if (notifList) notifList.innerHTML = '<div style="padding: 20px; text-align: center; color: #9CA3AF; font-size: 0.9rem;">No hay notificaciones nuevas.</div>';
-                }
-            }, 300);
-        });
-    });
 
     document.addEventListener('click', (e) => {
         if (notifContainer && !notifContainer.contains(e.target)) {
@@ -562,15 +622,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 dayDiv.classList.add('today');
             }
 
-            let dayHTML = `<div style="text-align: right; margin-bottom: 5px;"><span class="calendar-day-number">${day}</span></div>`;
-
-            dayEvents.forEach(event => {
-                dayHTML += `
-                    <div class="calendar-event-chip" title="${event.title}">
-                        <strong>${event.time}</strong> ${event.title}
-                    </div>
-                `;
-            });
+            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
+            
+            if (dayEvents.length > 0) {
+                dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px; overflow: hidden;">`;
+                dayEvents.forEach(event => {
+                    dayHTML += `
+                        <div class="calendar-event-block" style="background-color: #E11D48; color: #FFFFFF; padding: 4px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#9F1239'" onmouseout="this.style.backgroundColor='#E11D48'" title="${event.title} - ${event.time}">
+                            ${event.title}
+                        </div>
+                    `;
+                });
+                dayHTML += `</div>`;
+            }
 
             dayDiv.innerHTML = dayHTML;
             calendarDays.appendChild(dayDiv);
@@ -612,7 +676,6 @@ document.addEventListener('DOMContentLoaded', () => {
             renderCalendar();
         });
     }
-
     renderCalendar();
 
     // 9. LÓGICA PARA AGENDAR REUNIÓN
@@ -630,7 +693,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1); 
             const minDate = tomorrow.toISOString().split('T')[0];
-            
             const dateInput = document.getElementById('meeting-date');
             dateInput.min = minDate; 
             dateInput.value = minDate; 
@@ -642,13 +704,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeMeetingModal = () => { if (meetingModal) meetingModal.classList.remove('active'); };
     if (btnCerrarMeeting) btnCerrarMeeting.addEventListener('click', closeMeetingModal);
     if (btnCancelarMeeting) btnCancelarMeeting.addEventListener('click', closeMeetingModal);
-
     if (btnSubmitMeeting) {
         btnSubmitMeeting.addEventListener('click', () => {
             const title = document.getElementById('meeting-title').value.trim();
             const date = document.getElementById('meeting-date').value;
             const time = document.getElementById('meeting-time').value;
-
             if (title === '' || date === '') {
                 alert('Por favor, llena el título y la fecha.');
                 return;
@@ -662,7 +722,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('No puedes agendar una reunión para hoy ni para días pasados. Debe ser con al menos 1 día de anticipación.');
                 return;
             }
-
             events.push({
                 id: Date.now(),
                 date: date,
@@ -673,48 +732,25 @@ document.addEventListener('DOMContentLoaded', () => {
             currentMonth = selectedDate.getMonth();
             currentYear = selectedDate.getFullYear();
             renderCalendar();
-
-            const notifList = document.querySelector('.notif-list');
-            const notifDot = document.querySelector('.notification-dot');
-            
-            if (notifList) {
-                if (notifList.innerHTML.includes('No hay notificaciones nuevas')) {
-                    notifList.innerHTML = '';
-                }
-
-                const newNotif = document.createElement('div');
-                newNotif.className = 'notif-item';
-                newNotif.setAttribute('data-target', 'view-calendario');
-                newNotif.innerHTML = `
-                    <div class="notif-icon system">CAL</div>
-                    <div class="notif-text">
-                        <strong>Nueva reunión: ${title}</strong>
-                        <span>Agendada para el ${date} a las ${time}</span>
-                    </div>
-                `;
-
-                newNotif.addEventListener('click', function() {
-                    this.style.opacity = '0';
-                    this.style.transform = 'translateX(20px)';
-                    setTimeout(() => this.remove(), 300);
-                    switchView('view-calendario');
-                });
-
-                notifList.insertBefore(newNotif, notifList.firstChild);
-                if (notifDot) notifDot.style.display = 'block';
-            }
-
             closeMeetingModal();
+
+            // ✅ NOTIFICACIÓN DE REUNIÓN
+            if (window.notify) {
+                window.notify({
+                    titulo: 'Nueva Reunión',
+                    mensaje: `${title} agendada para el ${date} a las ${time}`,
+                    destinatario: currentUser.nombre,
+                    tipo: 'reunion',
+                    targetView: 'view-calendario'
+                });
+                window.notify({
+                    titulo: 'Nueva Reunión',
+                    mensaje: `${title} agendada por el cliente.`,
+                    destinatario: 'Administrador',
+                    tipo: 'reunion',
+                    targetView: 'view-calendario'
+                });
+            }
         });
     }
-
-    // 10. LÓGICA DEL ENLACE "VER CALENDARIO" DEL INICIO
-    const linkVerCalendario = document.getElementById('link-ver-calendario');
-    if (linkVerCalendario) {
-        linkVerCalendario.addEventListener('click', (e) => {
-            e.preventDefault();
-            switchView('view-calendario');
-        });
-    }
-
 });
