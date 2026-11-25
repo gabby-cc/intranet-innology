@@ -639,7 +639,7 @@
             </div>
 
             <!-- Tarjetas resumen -->
-            <div class="tickets-summary-grid">
+                <div class="tickets-summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
                 <div class="summary-card" style="border-top-color: var(--primary-red);">
                     <h2 id="horas-total-periodo">0h 00m</h2>
                     <p>Horas autorizadas (según filtros)</p>
@@ -651,6 +651,10 @@
                 <div class="summary-card" style="border-top-color: #F59E0B;">
                     <h2 id="horas-incompletos">0</h2>
                     <p>Incompletos por revisar</p>
+                </div>
+                <div class="summary-card" style="border-top-color: #DC2626;">
+                    <h2 id="horas-retardos" style="color: #DC2626;">0</h2>
+                    <p>Retardos</p>
                 </div>
                 <div class="summary-card" style="border-top-color: #10B981;">
                     <h2 id="horas-ultima-importacion" style="font-size: 1.3rem; line-height: 1.3;">Sin importar</h2>
@@ -668,6 +672,7 @@
                         <option value="todos">Todos los estados</option>
                         <option value="Autorizado">Autorizado</option>
                         <option value="Incompleto">Incompleto</option>
+                        <option value="Retardo">Con retardo</option>
                     </select>
                 </div>
                 <table class="tickets-table">
@@ -772,6 +777,7 @@
                             <label>Nombre de la plantilla *</label>
                             <input type="text" id="doc-nombre" class="form-control" placeholder="Ej. Carta de presentación 2026">
                         </div>
+
 
                         <div class="form-group">
                             <label>Descripción (opcional)</label>
