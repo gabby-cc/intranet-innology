@@ -358,6 +358,264 @@ body:not(.login-body) { display: flex; }
 .calendar-event-block {
     display: block;
     font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+
+
+
+/* =========================================
+   MÓDULO DE ENTREVISTAS Y CALENDARIO
+   ========================================= */
+.interview-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+/* --- Calendario (Ahora ocupa todo el ancho) --- */
+.calendar-card {
+    background: var(--bg-white);
+    border-radius: 10px;
+    padding: 25px;
+    border: 1px solid #E5E7EB;
+    box-shadow: var(--shadow-sm);
+    width: 100%;
+}
+
+.calendar-header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-top: 1px solid #E5E7EB;
+    border-left: 1px solid #E5E7EB;
+}
+
+.calendar-day-header {
+    background-color: var(--bg-premium-gray);
+    padding: 10px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    border-right: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.calendar-day {
+    min-height: 110px;
+    padding: 8px;
+    border-right: 1px solid #E5E7EB;
+    border-bottom: 1px solid #E5E7EB;
+    background: var(--bg-white);
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.calendar-day:hover { background: #F9FAFB; }
+.calendar-day.empty { background: #FAFAFA; cursor: default; }
+.calendar-day.today { background: #FFF9F9; }
+
+.calendar-day-number {
+    font-weight: 600;
+    color: var(--text-dark);
+    font-size: 0.9rem;
+    align-self: flex-end;
+    margin-bottom: 5px;
+}
+
+.calendar-day.today .calendar-day-number {
+    background: var(--primary-red);
+    color: white;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.calendar-event-chip {
+    font-size: 0.7rem;
+    color: var(--text-dark);
+    background: #FFF0F2;
+    border-left: 3px solid var(--primary-red);
+    border-radius: 4px;
+    padding: 3px 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.calendar-event-chip.jcf {
+    background: #E8F0FE;
+    border-left-color: #1A73E8;
+}
+
+.calendar-event-chip strong { color: var(--primary-red); }
+
+/* --- Tabla de Entrevistas (Abajo) --- */
+.interview-table-container {
+    background: var(--bg-white);
+    border-radius: 10px;
+    border: 1px solid #E5E7EB;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.interview-table-filters {
+    padding: 20px;
+    background: #FFFFFF;
+    border-bottom: 1px solid #E5E7EB;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.interview-table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.interview-table-container th {
+    background: #F9FAFB;
+    padding: 15px 20px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #6B7280;
+    font-weight: 600;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.interview-table-container td {
+    padding: 15px 20px;
+    border-bottom: 1px solid #F3F4F6;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+    vertical-align: middle;
+}
+
+.badge-type {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.badge-type.trainee { background: #FFF0F2; color: var(--primary-red); }
+.badge-type.jcf { background: #E8F0FE; color: #1A73E8; }
+
+/* Estado Select (Solo cuando está en modo edición) */
+.status-select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #D1D5DB;
+    font-size: 0.85rem;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    background: white;
+}
+
+
+/* =========================================
+   MÓDULO DE DOCUMENTOS Y PLANTILLAS
+   ========================================= */
+.file-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.file-icon-box.pdf { background-color: #FCE8E6; color: #D93025; }
+.file-icon-box.word { background-color: #E8F0FE; color: #1A73E8; }
+.file-icon-box.excel { background-color: #E6F4EA; color: #1E8E3E; }
+.file-icon-box.ppt { background-color: #FFF3E0; color: #E65100; }
+.file-icon-box.txt { background-color: #F3F4F6; color: #4B5563; }
+
+.doc-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.doc-name-cell strong {
+    display: block;
+    font-size: 0.9rem;
+    color: var(--text-dark);
+}
+
+.doc-name-cell span {
+    font-size: 0.75rem;
+    color: var(--text-light);
+}
+
+.status-badge-active {
+    background-color: #D1FAE5;
+    color: #065F46;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-badge-inactive {
+    background-color: #F3F4F6;
+    color: #6B7280;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+
+/* =========================================
+   REGISTRO DE HORAS
+   ========================================= */
+.status-badge-warning {
+    background-color: #FEF3C7;
+    color: #92400E;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.dropzone {
+    border: 2px dashed #D1D5DB;
+    border-radius: 8px;
+    padding: 45px 20px;
+    text-align: center;
+    background: #F9FAFB;
+    transition: all 0.2s;
+}
+
+.dropzone.dragover {
+    border-color: var(--primary-red);
+    background: #FFF9F9;
+}
+
+.calendar-event-block {
     font-weight: 500;
     color: #000000 !important;
     background: transparent !important;
