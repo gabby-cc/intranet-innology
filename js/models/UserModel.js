@@ -115,4 +115,15 @@ export class UserModel {
         }
         return false;
     }
+
+    // ✅ NUEVO: Método preparado para la base de datos
+    async obtenerCatalogos() {
+        // 🔴 AQUÍ CAMBIARÁS EL CÓDIGO CUANDO CONECTES TU BD
+        // Ejemplo: return await fetch('/api/catalogos').then(res => res.json());
+        
+        return {
+            modulos: ['Ventas', 'Compras', 'Contabilidad', 'Inventario'],
+            paises: ['México', 'Colombia', 'España', 'Ecuador', 'Perú', 'Chile', 'Argentina', 'Global']
+        };
+    }
 }

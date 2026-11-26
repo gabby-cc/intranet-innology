@@ -1,51 +1,46 @@
 export class NotificationModel {
     constructor() {
-        this.notifications = [
-            // Ejemplo inicial
-            {
-                id: 1,
-                titulo: "Ticket TK-2048 actualizado",
-                mensaje: "El estado cambió a En espera",
-                destinatario: "Laura Méndez",
-                tipo: "ticket",
-                fecha: "Hace 5 min",
-                targetView: "view-tickets",
-                targetId: "TK-2048",
-                leida: false // ✅ Nueva propiedad
-            }
-        ];
+        const guardadas = localStorage.getItem('innology_notificaciones');
+        this.notifications = guardadas ? JSON.parse(guardadas) : [];
     }
 
-    getAll() {
-        return this.notifications;
+    guardar() {
+        localStorage.setItem('innology_notificaciones', JSON.stringify(this.notifications));
     }
 
-    // Solo devuelve las NO leídas del usuario
-    getByUser(userName, userRole) {
-        if (userRole === 'Administrador') {
-            return this.notifications.filter(n => !n.leida);
-        }
-        return this.notifications.filter(n => n.destinatario === userName && !n.leida);
-    }
-
-    create(notificationData) {
+    create(data) {
         const newNotif = {
-            id: Date.now(),
-            ...notificationData,
-            fecha: 'Hace un momento',
-            leida: false // ✅ Nueva notificación no leída
+            id: Date.now() + Math.random().toString(36).substring(2, 9),
+            titulo: data.titulo,
+            mensaje: data.mensaje,
+            destinatario: data.destinatario,
+            tipo: data.tipo || 'sistema',
+            targetView: data.targetView || '',
+            targetId: data.targetId || '',
+            fecha: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ', ' + 
+                   new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
         };
+
         this.notifications.push(newNotif);
+        this.guardar();
+        document.dispatchEvent(new CustomEvent('notificacionCreada', { detail: newNotif }));
         return newNotif;
     }
 
-    // ✅ Nuevo método para marcar como leída
-    markAsRead(id) {
-        const notif = this.notifications.find(n => n.id === parseInt(id));
-        if (notif) {
-            notif.leida = true;
-            return true;
-        }
-        return false;
+    // ✅ CORREGIDO: El admin recibe las notificaciones dirigidas a "Administrador"
+    getByUser(nombreUsuario, rolUsuario) {
+        return this.notifications.filter(n => {
+            // Si es administrador y la notificación es para "Administrador"
+            if (rolUsuario === 'Administrador' && n.destinatario === 'Administrador') return true;
+            // Si es para el nombre exacto del usuario
+            if (n.destinatario && n.destinatario.trim().toLowerCase() === nombreUsuario.trim().toLowerCase()) return true;
+            return false;
+        });
+    }
+
+    deleteById(id) {
+        this.notifications = this.notifications.filter(n => n.id !== id);
+        this.guardar();
+        document.dispatchEvent(new CustomEvent('notificacionBorrada'));
     }
 }

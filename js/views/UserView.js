@@ -59,6 +59,8 @@ export class UserView {
         document.getElementById('user-rol').value = user.rol;
         document.getElementById('user-estado').value = user.estado;
         
+        document.getElementById('user-birthdate').value = user.fechaNacimiento || '';
+
         this.toggleRoleFields(user.rol);
 
         // ✅ Llenar campos de Consultor con checkboxes
@@ -113,6 +115,10 @@ export class UserView {
         document.querySelectorAll('.dropdown-check-list .items input[type="checkbox"]').forEach(cb => {
             cb.checked = false;
         });
+
+        const birthdateInput = document.getElementById('user-birthdate');
+        if (birthdateInput) birthdateInput.value = '';
+
         const anchorModulos = document.querySelector('#dropdown-modulos .anchor');
         if (anchorModulos) anchorModulos.textContent = 'Seleccionar módulos...';
         const anchorPaises = document.querySelector('#dropdown-paises .anchor');

@@ -10,7 +10,10 @@ export class UserController {
         this.init();
     }
 
-    init() {
+    async init() {
+        // ✅ 1. Cargamos los catálogos de forma asíncrona
+        await this.cargarCatalogos();
+
         this.renderTable();
 
         const btnNew = document.getElementById('btn-nuevo-usuario');
@@ -53,16 +56,64 @@ export class UserController {
             });
         }
 
-        // ✅ NUEVO: Configurar los desplegables de checkboxes
-        this.setupDropdown('dropdown-modulos');
-        this.setupDropdown('dropdown-paises');
+        // ✅ NUEVO: Escuchadores para los filtros de búsqueda y rol
+        const inputBuscar = document.getElementById('filter-user-text');
+        const selectFiltroRol = document.getElementById('filter-user-role');
 
-        // Cerrar desplegables al hacer clic fuera
-        document.addEventListener('click', () => {
-            document.querySelectorAll('.dropdown-check-list .items').forEach(list => {
-                list.classList.remove('visible');
-            });
+        if (inputBuscar) {
+            inputBuscar.addEventListener('input', () => this.renderTable());
+        }
+        if (selectFiltroRol) {
+            selectFiltroRol.addEventListener('change', () => this.renderTable());
+        }
+
+        // ✅ Cerrar desplegables SOLO si el clic es fuera de un desplegable
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.dropdown-check-list')) {
+                document.querySelectorAll('.dropdown-check-list .items').forEach(list => {
+                    list.classList.remove('visible');
+                });
+            }
         });
+    }
+
+    // ✅ NUEVA FUNCIÓN: Pide los catálogos al modelo y los dibuja
+    async cargarCatalogos() {
+        try {
+            const catalogos = await this.model.obtenerCatalogos();
+            
+            this.renderizarCheckboxes('dropdown-modulos', catalogos.modulos);
+            this.renderizarCheckboxes('dropdown-paises', catalogos.paises);
+            
+        } catch (error) {
+            console.error("Error al cargar catálogos:", error);
+        }
+    }
+
+    // ✅ NUEVA FUNCIÓN: Genera el HTML de los checkboxes
+    renderizarCheckboxes(containerId, opciones) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        const items = container.querySelector('.items');
+        if (!items) return;
+
+        items.innerHTML = ''; // Limpiamos
+
+        // 1. Opción "Todos"
+        const liTodos = document.createElement('li');
+        liTodos.innerHTML = `<label><input type="checkbox" value="Todos" class="check-todos"> <strong>Todos</strong></label>`;
+        items.appendChild(liTodos);
+
+        // 2. Opciones
+        opciones.forEach(opcion => {
+            const li = document.createElement('li');
+            li.innerHTML = `<label><input type="checkbox" value="${opcion}"> ${opcion}</label>`;
+            items.appendChild(li);
+        });
+
+        // 3. Inicializamos la lógica del dropdown
+        this.setupDropdown(containerId);
     }
 
     // ✅ Función auxiliar para manejar los desplegables de checkboxes
@@ -73,29 +124,90 @@ export class UserController {
         const anchor = container.querySelector('.anchor');
         const items = container.querySelector('.items');
         if (!anchor || !items) return;
-        
-        // Abrir/cerrar al hacer clic en el anchor
+
+        // 1. Abrir/cerrar el menú
         anchor.addEventListener('click', (e) => {
             e.stopPropagation();
-            // Cerrar otros desplegables
+            // Cerrar otros menús
             document.querySelectorAll('.dropdown-check-list .items').forEach(list => {
                 if (list !== items) list.classList.remove('visible');
             });
             items.classList.toggle('visible');
         });
 
-        // Actualizar el texto del anchor cuando se seleccionan checkboxes
+        // 2. Evitar que al hacer clic dentro del menú se cierre (incluyendo checkboxes)
+        items.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+        });
+
+        // 3. Lógica de selección
         const checkboxes = items.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-            cb.addEventListener('change', () => {
-                const selected = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
-                anchor.textContent = selected.length > 0 ? selected.join(', ') : 'Seleccionar...';
+        const checkboxTodos = items.querySelector('.check-todos');
+        const checkboxesIndividuales = Array.from(checkboxes).filter(cb => !cb.classList.contains('check-todos'));
+
+        // Función para actualizar el texto
+        const updateAnchorText = () => {
+            const seleccionados = checkboxesIndividuales.filter(c => c.checked);
+            
+            if (seleccionados.length === 0) {
+                anchor.textContent = 'Seleccionar...';
+            } else if (checkboxTodos && checkboxTodos.checked) {
+                anchor.textContent = 'Todos';
+            } else if (seleccionados.length > 2) { 
+                anchor.textContent = `${seleccionados.length} seleccionados`;
+            } else {
+                anchor.textContent = seleccionados.map(c => c.value).join(', ');
+            }
+        };
+
+        // Evento para el checkbox "Todos"
+        if (checkboxTodos) {
+            checkboxTodos.addEventListener('click', () => {
+                setTimeout(() => {
+                    checkboxesIndividuales.forEach(cb => cb.checked = checkboxTodos.checked);
+                    updateAnchorText();
+                }, 0);
+            });
+        }
+
+        // Evento para checkboxes individuales
+        checkboxesIndividuales.forEach(cb => {
+            cb.addEventListener('click', () => {
+                setTimeout(() => {
+                    if (checkboxTodos) {
+                        const todosMarcados = checkboxesIndividuales.every(c => c.checked);
+                        checkboxTodos.checked = todosMarcados;
+                    }
+                    updateAnchorText();
+                }, 0);
             });
         });
+
+        // Inicializar el texto
+        updateAnchorText();
     }
 
+    // ✅ MODIFICADO: Ahora aplica los filtros antes de renderizar
     renderTable() {
-        const users = this.model.getAllUsers();
+        let users = this.model.getAllUsers();
+
+        // Capturar los valores de los filtros
+        const filtroTexto = document.getElementById('filter-user-text')?.value.toLowerCase().trim() || '';
+        const filtroRol = document.getElementById('filter-user-role')?.value || 'Todos los roles';
+
+        // Aplicar filtros
+        users = users.filter(user => {
+            // 1. Filtro por Nombre o Correo
+            const coincideTexto = filtroTexto === '' || 
+                user.nombre.toLowerCase().includes(filtroTexto) || 
+                (user.correo && user.correo.toLowerCase().includes(filtroTexto));
+
+            // 2. Filtro por Rol
+            const coincideRol = filtroRol === 'Todos los roles' || user.rol === filtroRol;
+
+            return coincideTexto && coincideRol;
+        });
+
         this.view.renderUsers(users);
     }
 
@@ -134,6 +246,9 @@ export class UserController {
         const rol = document.getElementById('user-rol').value;
         const estado = document.getElementById('user-estado').value;
         
+        // ✅ NUEVO: Capturar la fecha de nacimiento
+        const fechaNacimiento = document.getElementById('user-birthdate').value;
+
         let perfil = '-';
         let modulos = [];
         let paises = [];
@@ -143,6 +258,12 @@ export class UserController {
         // Validaciones
         if (!nombre || !correo || !rol || !estado) {
             alert('Por favor, llena todos los campos obligatorios (*).');
+            return;
+        }
+
+        // ✅ Validación de la fecha (opcional pero recomendada)
+        if (!fechaNacimiento) {
+            alert('Por favor, ingresa la fecha de nacimiento.');
             return;
         }
 
@@ -160,25 +281,23 @@ export class UserController {
         if (rol === 'Consultor') {
             perfil = document.getElementById('user-perfil').value;
             
-            // ✅ Capturar los checkboxes marcados de módulos
             const modulosCheckboxes = document.querySelectorAll('#dropdown-modulos .items input[type="checkbox"]:checked');
-            modulos = Array.from(modulosCheckboxes).map(cb => cb.value);
+            modulos = Array.from(modulosCheckboxes).map(cb => cb.value).filter(v => v !== 'Todos');
             
-            // ✅ Capturar los checkboxes marcados de países
             const paisesCheckboxes = document.querySelectorAll('#dropdown-paises .items input[type="checkbox"]:checked');
-            paises = Array.from(paisesCheckboxes).map(cb => cb.value);
+            paises = Array.from(paisesCheckboxes).map(cb => cb.value).filter(v => v !== 'Todos');
 
         } else if (rol === 'Solicitante') {
             empresa = document.getElementById('user-empresa').value.trim();
             paisSolicitante = document.getElementById('user-pais-solicitante').value;
         }
 
+        // ✅ Incluir la fecha en el objeto
         const userData = { 
-            nombre, correo, password, rol, perfil, modulos, paises, empresa, paisSolicitante, estado 
+            nombre, correo, password, rol, perfil, modulos, paises, empresa, paisSolicitante, estado, fechaNacimiento 
         };
 
         if (this.editingId) {
-            // ✅ NUEVO: Validar si están intentando desactivar al último admin (o a sí mismos) desde el modal
             const currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
             const userToEdit = this.model.getUserById(this.editingId);
             
@@ -211,19 +330,16 @@ export class UserController {
     }
 
     toggleStatus(id) {
-        // ✅ NUEVO: Protecciones para no quedarnos sin administradores
         const userToToggle = this.model.getUserById(id);
         const currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
 
         if (!userToToggle) return;
 
-        // 1. Evitar que un admin se desactive a sí mismo
         if (currentUser && userToToggle.id === currentUser.id && userToToggle.rol === 'Administrador') {
             alert('⛔ No puedes desactivar tu propia cuenta de administrador.');
             return;
         }
 
-        // 2. Evitar desactivar al último administrador activo del sistema
         if (userToToggle.rol === 'Administrador' && userToToggle.estado === 'Activo') {
             const adminsActivos = this.model.getAllUsers().filter(u => u.rol === 'Administrador' && u.estado === 'Activo');
             if (adminsActivos.length <= 1) {
@@ -232,7 +348,6 @@ export class UserController {
             }
         }
 
-        // Si pasa las validaciones, procedemos
         if (confirm('¿Estás seguro de cambiar el estado de este usuario?')) {
             this.model.toggleStatus(id);
             this.renderTable();

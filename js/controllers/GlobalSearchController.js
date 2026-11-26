@@ -1,8 +1,12 @@
 export class GlobalSearchController {
-    constructor(ticketModel, documentModel, ticketController) {
+    // ✅ CAMBIO: ahora recibe rol y nombre del usuario para filtrar los documentos.
+    // Por defecto asume 'cliente' (el más restrictivo) por si alguien olvida pasarlos.
+    constructor(ticketModel, documentModel, ticketController, userRole = 'cliente', currentUser = '') {
         this.ticketModel = ticketModel;
         this.documentModel = documentModel;
         this.ticketController = ticketController;
+        this.userRole = userRole;        // 'admin' | 'consultor' | 'cliente'
+        this.currentUser = currentUser;  // nombre del usuario logueado
         this.searchInput = document.getElementById('global-search');
         this.resultsContainer = document.getElementById('global-search-results');
         this.init();
@@ -66,7 +70,9 @@ export class GlobalSearchController {
             });
         }
 
-        const docs = this.documentModel.searchDocuments(term);
+        // ✅ CAMBIO: buscamos solo dentro de los documentos que este usuario puede ver
+        const visibles = this.documentModel.getVisibleDocuments(this.currentUser, this.userRole, this.ticketModel);
+        const docs = this.documentModel.searchDocuments(term, visibles);
 
         if (docs.length > 0) {
             hasResults = true;

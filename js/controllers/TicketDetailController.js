@@ -1,5 +1,4 @@
 import { TicketModel } from '../models/TicketModel.js';
-
 import { UserModel } from '../models/UserModel.js';
 
 export class TicketDetailController {
@@ -34,45 +33,28 @@ export class TicketDetailController {
         document.dispatchEvent(new CustomEvent('ticketUpdated', { detail: { id: this.currentTicketId } }));
     }
 
-    // ✅ Helper para saber si puede registrar horas
     puedeRegistrarHoras() {
         return this.userRole === 'admin' || this.userRole === 'consultor';
     }
 
-    // ✅ Aplicar permisos según el rol
     aplicarPermisosPorRol() {
         const esAdmin = this.userRole === 'admin';
         const puedeHoras = this.puedeRegistrarHoras();
 
-        // Botones de acción del encabezado (Escalar / Cerrar) → solo admin
         const adminActions = document.getElementById('dt-admin-actions');
-        if (adminActions) {
-            adminActions.style.display = esAdmin ? 'flex' : 'none';
-        }
+        if (adminActions) adminActions.style.display = esAdmin ? 'flex' : 'none';
 
-        // Botón de Reasignar → solo admin
         const btnAsignar = document.getElementById('btn-asignar-consultor');
-        if (btnAsignar) {
-            btnAsignar.style.display = esAdmin ? 'block' : 'none';
-        }
+        if (btnAsignar) btnAsignar.style.display = esAdmin ? 'block' : 'none';
 
-        // Aviso de asignación → cliente y consultor
         const avisoAsignacion = document.getElementById('dt-asignacion-aviso');
-        if (avisoAsignacion) {
-            avisoAsignacion.style.display = esAdmin ? 'none' : 'block';
-        }
+        if (avisoAsignacion) avisoAsignacion.style.display = esAdmin ? 'none' : 'block';
 
-        // ✅ Registrar Horas → consultor y admin (visible); cliente oculto
         const btnRegistrarHoras = document.getElementById('btn-registrar-horas');
-        if (btnRegistrarHoras) {
-            btnRegistrarHoras.style.display = puedeHoras ? 'inline-block' : 'none';
-        }
-
-        console.log(`🔐 Permisos aplicados. Rol: ${this.userRole} | Puede registrar horas: ${puedeHoras}`);
+        if (btnRegistrarHoras) btnRegistrarHoras.style.display = puedeHoras ? 'inline-block' : 'none';
     }
 
     init() {
-        // ✅ Aplicar permisos según el rol
         this.aplicarPermisosPorRol();
 
         const btnVolver = document.getElementById('btn-volver-tickets');
@@ -84,7 +66,6 @@ export class TicketDetailController {
         const btnGuardarSolucion = document.getElementById('btn-guardar-solucion');
         if (btnGuardarSolucion) btnGuardarSolucion.onclick = () => this.guardarSolucion();
 
-        // ✅ Listeners de ADMIN
         if (this.userRole === 'admin') {
             const btnCerrar = document.getElementById('btn-cerrar-ticket');
             if (btnCerrar) btnCerrar.addEventListener('click', () => this.cerrarTicket());
@@ -96,17 +77,11 @@ export class TicketDetailController {
             if (btnAsignar) btnAsignar.addEventListener('click', () => this.abrirModalAsignacion());
         }
 
-        // ✅ Listener de REGISTRAR HORAS → se engancha SIEMPRE
-        // (el método abrirModalHoras valida el rol internamente)
         const btnRegistrarHoras = document.getElementById('btn-registrar-horas');
         if (btnRegistrarHoras) {
             btnRegistrarHoras.addEventListener('click', () => this.abrirModalHoras());
-            console.log('✅ Listener de "Registrar Horas" enganchado');
-        } else {
-            console.warn('⚠️ No se encontró #btn-registrar-horas en el DOM');
         }
 
-        // Botones del Modal de Asignación
         const btnCerrarModalAssign = document.getElementById('btn-cerrar-modal-assign');
         const btnCancelarAssign = document.getElementById('btn-cancelar-assign');
         const btnConfirmarAssign = document.getElementById('btn-confirmar-assign');
@@ -115,7 +90,6 @@ export class TicketDetailController {
         if (btnCancelarAssign) btnCancelarAssign.addEventListener('click', () => this.cerrarModalAsignacion());
         if (btnConfirmarAssign) btnConfirmarAssign.addEventListener('click', () => this.confirmarAsignacion());
 
-        // Botones del Modal de Horas
         const btnCerrarModalHours = document.getElementById('btn-cerrar-modal-hours');
         const btnCancelarHours = document.getElementById('btn-cancelar-hours');
         const btnConfirmarHours = document.getElementById('btn-confirmar-hours');
@@ -126,7 +100,20 @@ export class TicketDetailController {
     }
 
     openTicket(ticketId) {
-        this.loadTicket(ticketId);
+        const ticket = this.model.getTicketById(ticketId);
+        if (!ticket) {
+            console.error('❌ No se encontró el ticket', ticketId);
+            alert('Este ticket (' + ticketId + ') ya no existe.');
+            return;
+        }
+
+        try {
+            this.loadTicket(ticketId);
+        } catch (error) {
+            console.error('❌ Error al cargar el detalle del ticket', ticketId, error);
+            alert('⚠️ [DEPURACIÓN] Error al cargar el detalle: ' + error.message);
+        }
+
         this.goTo('view-detalle-ticket');
         document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
         const menuItem = document.querySelector('.menu-item[data-target="view-tickets"]');
@@ -135,7 +122,10 @@ export class TicketDetailController {
 
     loadTicket(ticketId) {
         const ticket = this.model.getTicketById(ticketId);
-        if (!ticket) return;
+        if (!ticket) {
+            console.warn("⚠️ Ticket no encontrado en loadTicket");
+            return;
+        }
         this.currentTicketId = ticketId;
 
         this.setText('dt-folio', ticket.id);
@@ -180,22 +170,13 @@ export class TicketDetailController {
         const esAdmin = this.userRole === 'admin';
         const esConsultor = this.userRole === 'consultor';
 
-        // ==========================================
-        // ✅ VISIBILIDAD DE HORAS
-        // ==========================================
         const puedeVerHoras = !esCliente || estaCerrado;
         const cardHoras = document.getElementById('dt-card-horas');
-        if (cardHoras) {
-            cardHoras.style.display = puedeVerHoras ? 'block' : 'none';
-        }
+        if (cardHoras) cardHoras.style.display = puedeVerHoras ? 'block' : 'none';
         
-        // ✅ Cámbiala a esto: SOLO el admin puede ver el desglose
         const puedeVerDesglose = (this.userRole === 'admin');
         this.renderDesgloseHoras(ticket, puedeVerDesglose);
             
-        // ==========================================
-        // ✅ LÓGICA DE BLOQUEO Y EDICIÓN
-        // ==========================================
         const btnAsignar = document.getElementById('btn-asignar-consultor');
         const btnCerrar = document.getElementById('btn-cerrar-ticket');
         const btnEscalar = document.getElementById('btn-escalar-ticket');
@@ -205,7 +186,14 @@ export class TicketDetailController {
         const btnGuardarSolucion = document.getElementById('btn-guardar-solucion');
         const btnRegistrarHoras = document.getElementById('btn-registrar-horas');
 
-        // Chat y Solución: bloqueados si cerrado
+        // ✅ AQUÍ ESTÁ EL CAMBIO: Ocultar input y botón de solución para el cliente
+        if (inputSolucion) {
+            inputSolucion.style.display = esCliente ? 'none' : 'block';
+        }
+        if (btnGuardarSolucion) {
+            btnGuardarSolucion.style.display = esCliente ? 'none' : 'inline-block';
+        }
+
         if (estaCerrado) {
             if (chatInput) { chatInput.disabled = true; chatInput.placeholder = 'Ticket cerrado.'; chatInput.style.background = '#F3F4F6'; chatInput.style.cursor = 'not-allowed'; }
             if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.style.opacity = '0.5'; btnEnviar.style.cursor = 'not-allowed'; }
@@ -218,7 +206,6 @@ export class TicketDetailController {
             if (btnGuardarSolucion) { btnGuardarSolucion.disabled = false; btnGuardarSolucion.style.opacity = '1'; btnGuardarSolucion.style.cursor = 'pointer'; }
         }
 
-        // Botones de ADMIN: bloqueados si cerrado
         if (esAdmin) {
             if (btnCerrar) { btnCerrar.disabled = estaCerrado; btnCerrar.style.opacity = estaCerrado ? '0.5' : '1'; btnCerrar.style.cursor = estaCerrado ? 'not-allowed' : 'pointer'; }
             if (btnEscalar) { btnEscalar.disabled = estaCerrado; btnEscalar.style.opacity = estaCerrado ? '0.5' : '1'; btnEscalar.style.cursor = estaCerrado ? 'not-allowed' : 'pointer'; }
@@ -230,7 +217,6 @@ export class TicketDetailController {
             }
         }
 
-        // ✅ Registrar Horas: consultor y admin (bloqueado si cerrado)
         if (btnRegistrarHoras) {
             if (this.puedeRegistrarHoras()) {
                 btnRegistrarHoras.style.display = 'inline-block';
@@ -255,7 +241,9 @@ export class TicketDetailController {
         }
         contenedor.style.display = 'block';
 
-        const desglose = this.model.horasPorConsultor(this.currentTicketId);
+        const desglose = (typeof this.model.horasPorConsultor === 'function'
+            ? this.model.horasPorConsultor(this.currentTicketId)
+            : null) || {};
         const autores = Object.keys(desglose);
 
         if (autores.length === 0) {
@@ -265,7 +253,6 @@ export class TicketDetailController {
 
         contenedor.innerHTML = autores.map(autor => {
             const data = desglose[autor];
-            // ✅ Solo mostramos el nombre y su total, sin las fechas ni las notas
             return `
                 <div style="display:flex;justify-content:space-between;align-items:center; padding: 8px 0; border-bottom: 1px solid #E5E7EB;">
                     <strong style="font-size:.9rem;color:#374151;">${this.escapeHTML(autor)}</strong>
@@ -275,41 +262,39 @@ export class TicketDetailController {
         }).join('');
     }
 
-abrirModalAsignacion() {
-    if (this.userRole !== 'admin') {
-        alert('⛔ Solo el administrador puede reasignar tickets.');
-        return;
-    }
-    const ticket = this.model.getTicketById(this.currentTicketId);
-    if (ticket && ticket.status === 'Resuelto') return;
-
-    const modal = document.getElementById('assign-modal');
-    const select = document.getElementById('select-consultor');
-    
-    // ✅ NUEVO: Llenar el select solo con consultores activos
-    if (select) {
-        const userModel = new UserModel();
-        const consultoresActivos = userModel.getAllUsers().filter(u => 
-            u.rol === 'Consultor' && u.estado === 'Activo'
-        );
-
-        select.innerHTML = '<option value="" disabled selected>Selecciona un consultor...</option>';
-        
-        consultoresActivos.forEach(c => {
-            const option = document.createElement('option');
-            option.value = c.nombre;
-            option.textContent = c.nombre;
-            select.appendChild(option);
-        });
-
-        // Seleccionar al responsable actual si existe
-        if (ticket.responsable && ticket.responsable !== 'Sin asignar') {
-            select.value = ticket.responsable;
+    abrirModalAsignacion() {
+        if (this.userRole !== 'admin') {
+            alert('⛔ Solo el administrador puede reasignar tickets.');
+            return;
         }
-    }
+        const ticket = this.model.getTicketById(this.currentTicketId);
+        if (ticket && ticket.status === 'Resuelto') return;
 
-    if (modal) modal.classList.add('active');
-}
+        const modal = document.getElementById('assign-modal');
+        const select = document.getElementById('select-consultor');
+        
+        if (select) {
+            const userModel = new UserModel();
+            const consultoresActivos = userModel.getAllUsers().filter(u => 
+                u.rol === 'Consultor' && u.estado === 'Activo'
+            );
+
+            select.innerHTML = '<option value="" disabled selected>Selecciona un consultor...</option>';
+            
+            consultoresActivos.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.nombre;
+                option.textContent = c.nombre;
+                select.appendChild(option);
+            });
+
+            if (ticket.responsable && ticket.responsable !== 'Sin asignar') {
+                select.value = ticket.responsable;
+            }
+        }
+
+        if (modal) modal.classList.add('active');
+    }
 
     cerrarModalAsignacion() {
         const modal = document.getElementById('assign-modal');
@@ -325,6 +310,9 @@ abrirModalAsignacion() {
         const consultor = select ? select.value : '';
         
         if (this.currentTicketId && consultor) {
+            const ticketAnterior = this.model.getTicketById(this.currentTicketId);
+            const responsableAnterior = ticketAnterior ? ticketAnterior.responsable : 'Sin asignar';
+
             this.model.asignarResponsable(this.currentTicketId, consultor);
             this.cerrarModalAsignacion();
             this.loadTicket(this.currentTicketId); 
@@ -332,20 +320,38 @@ abrirModalAsignacion() {
 
             if (window.notify) {
                 window.notify({
-                    titulo: 'Nuevo Ticket Asignado',
-                    mensaje: `Se te ha asignado el ticket ${this.currentTicketId}.`,
+                    titulo: 'Ticket Asignado',
+                    mensaje: `Se te ha asignado el ticket ${this.currentTicketId}: "${ticketAnterior.title}"`,
                     destinatario: consultor,
                     tipo: 'ticket',
                     targetView: 'view-tickets',
                     targetId: this.currentTicketId
                 });
+
+                if (responsableAnterior && responsableAnterior !== 'Sin asignar' && responsableAnterior !== consultor) {
+                    window.notify({
+                        titulo: 'Ticket Reasignado',
+                        mensaje: `El ticket ${this.currentTicketId} ha sido reasignado a ${consultor}.`,
+                        destinatario: responsableAnterior,
+                        tipo: 'ticket',
+                    });
+                }
+
+                if (ticketAnterior && ticketAnterior.solicitante) {
+                    window.notify({
+                        titulo: 'Ticket en Atención',
+                        mensaje: `Tu ticket ${this.currentTicketId} ha sido asignado a un consultor.`,
+                        destinatario: ticketAnterior.solicitante,
+                        tipo: 'ticket',
+                        targetView: 'view-tickets',
+                        targetId: this.currentTicketId
+                    });
+                }
             }
         }
     }
 
-    // ✅ Abrir modal de horas: valida rol (consultor y admin)
     abrirModalHoras() {
-        console.log(`🕒 abrirModalHoras() — Rol: ${this.userRole}`);
         if (!this.puedeRegistrarHoras()) {
             alert('⛔ Solo consultores y administradores pueden registrar horas.');
             return;
@@ -365,12 +371,7 @@ abrirModalAsignacion() {
         if (inputN) inputN.value = '';
         
         const modal = document.getElementById('hours-modal');
-        if (modal) {
-            modal.classList.add('active');
-            console.log('✅ Modal de horas abierto');
-        } else {
-            console.warn('⚠️ No se encontró #hours-modal');
-        }
+        if (modal) modal.classList.add('active');
     }
 
     cerrarModalHoras() {
@@ -379,7 +380,6 @@ abrirModalAsignacion() {
     }
 
     confirmarHoras() {
-        console.log(`✅ confirmarHoras() — Rol: ${this.userRole}`);
         if (!this.puedeRegistrarHoras()) {
             alert('⛔ Solo consultores y administradores pueden registrar horas.');
             return;
@@ -395,11 +395,14 @@ abrirModalAsignacion() {
 
         if (this.currentTicketId) {
             const autor = this.currentUser;
-            console.log(`📝 Registrando ${h}h ${m}m por ${autor}`);
             this.model.registrarHoras(this.currentTicketId, h, m, nota, autor);
             this.cerrarModalHoras();
+            
             this.loadTicket(this.currentTicketId);
-            this.notifyChange();
+            
+            setTimeout(() => {
+                this.notifyChange();
+            }, 100);
         }
     }
 
@@ -419,43 +422,42 @@ abrirModalAsignacion() {
         }
     }
 
-renderHistorial() {
-    const historial = this.model.getHistoryByTicketId(this.currentTicketId);
-    const chat = document.getElementById('dt-chat');
-    if (chat) {
-        const comentarios = historial.filter(h => h.tipo === 'comentario');
-        if (comentarios.length === 0) { chat.innerHTML = '<p style="color:#9CA3AF;font-size:.85rem;text-align:center;padding:20px;">Aún no hay comentarios.</p>'; } 
-        else {
-            chat.innerHTML = comentarios.map(c => `
-                <div style="margin-bottom:12px;">
-                    <div style="font-size:.75rem;color:#6B7280;margin-bottom:4px;"><strong>${this.escapeHTML(c.autor)}</strong> · ${this.escapeHTML(c.fecha)}</div>
-                    <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px;font-size:.9rem;color:#374151;">${this.escapeHTML(c.accion)}</div>
-                </div>
-            `).join('');
+    renderHistorial() {
+        const historial = this.model.getHistoryByTicketId(this.currentTicketId) || [];
+        const chat = document.getElementById('dt-chat');
+        if (chat) {
+            const comentarios = historial.filter(h => h.tipo === 'comentario');
+            if (comentarios.length === 0) { chat.innerHTML = '<p style="color:#9CA3AF;font-size:.85rem;text-align:center;padding:20px;">Aún no hay comentarios.</p>'; } 
+            else {
+                chat.innerHTML = comentarios.map(c => `
+                    <div style="margin-bottom:12px;">
+                        <div style="font-size:.75rem;color:#6B7280;margin-bottom:4px;"><strong>${this.escapeHTML(c.autor)}</strong> · ${this.escapeHTML(c.fecha)}</div>
+                        <div style="background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:10px;font-size:.9rem;color:#374151;">${this.escapeHTML(c.accion)}</div>
+                    </div>
+                `).join('');
+            }
+            chat.scrollTop = chat.scrollHeight;
         }
-        chat.scrollTop = chat.scrollHeight;
-    }
-    const lista = document.getElementById('dt-history-list');
-    if (lista) {
-        const esAdmin = this.userRole === 'admin';
-        // ✅ Admin ve TODO. Consultor y cliente NO ven tipo 'horas'
-        const eventos = historial.filter(h => {
-            if (h.tipo === 'comentario') return false;
-            if (h.tipo === 'horas' && !esAdmin) return false;
-            return true;
-        });
+        const lista = document.getElementById('dt-history-list');
+        if (lista) {
+            const esAdmin = this.userRole === 'admin';
+            const eventos = historial.filter(h => {
+                if (h.tipo === 'comentario') return false;
+                if (h.tipo === 'horas' && !esAdmin) return false;
+                return true;
+            });
 
-        if (eventos.length === 0) { lista.innerHTML = '<li style="color:#9CA3AF;font-size:.85rem;">Sin eventos registrados.</li>'; } 
-        else {
-            lista.innerHTML = eventos.map(h => `
-                <li style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #F3F4F6;">
-                    <strong style="color:#374151;">${this.escapeHTML(h.accion)}</strong><br>
-                    <span style="color:#9CA3AF;font-size:.8rem;">${this.escapeHTML(h.autor)}, ${this.escapeHTML(h.fecha)}</span>
-                </li>
-            `).join('');
+            if (eventos.length === 0) { lista.innerHTML = '<li style="color:#9CA3AF;font-size:.85rem;">Sin eventos registrados.</li>'; } 
+            else {
+                lista.innerHTML = eventos.map(h => `
+                    <li style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid #F3F4F6;">
+                        <strong style="color:#374151;">${this.escapeHTML(h.accion)}</strong><br>
+                        <span style="color:#9CA3AF;font-size:.8rem;">${this.escapeHTML(h.autor)}, ${this.escapeHTML(h.fecha)}</span>
+                    </li>
+                `).join('');
+            }
         }
     }
-}
 
     enviarComentario() {
         if (!this.currentTicketId) return;
@@ -476,12 +478,25 @@ renderHistorial() {
         if (!inputSolucion) return;
         const text = inputSolucion.value.trim();
         if (!text) { alert('Escribe una solución.'); return; }
+        
         const ticket = this.model.getTicketById(this.currentTicketId);
         if (ticket && ticket.status === 'Resuelto') { alert('El ticket está cerrado.'); return; }
+        
         this.model.guardarSolucion(this.currentTicketId, text, this.currentUser);
         inputSolucion.value = '';
         this.loadTicket(this.currentTicketId);
         this.notifyChange();
+
+        if (window.notify && ticket && ticket.solicitante && ticket.solicitante !== this.currentUser) {
+            window.notify({
+                titulo: 'Solución Documentada',
+                mensaje: `Tu ticket ${ticket.id} tiene una nueva actualización: "${text.substring(0, 50)}..."`,
+                destinatario: ticket.solicitante,
+                tipo: 'ticket',
+                targetView: 'view-tickets',
+                targetId: ticket.id
+            });
+        }
     }
 
     escalarTicket() {
@@ -523,11 +538,22 @@ renderHistorial() {
         this.loadTicket(this.currentTicketId); 
         this.notifyChange();
 
-        if (window.notify) {
+        if (window.notify && ticket && ticket.solicitante) {
+            window.notify({
+                titulo: 'Ticket Resuelto',
+                mensaje: `Tu ticket ${this.currentTicketId}: "${ticket.title}" ha sido cerrado exitosamente.`,
+                destinatario: ticket.solicitante,
+                tipo: 'ticket',
+                targetView: 'view-tickets',
+                targetId: this.currentTicketId
+            });
+        }
+
+        if (window.notify && ticket && ticket.responsable && ticket.responsable !== 'Sin asignar') {
             window.notify({
                 titulo: 'Ticket Cerrado',
-                mensaje: `El ticket ${this.currentTicketId} ha sido cerrado.`,
-                destinatario: 'Laura Méndez',
+                mensaje: `El ticket ${this.currentTicketId} que atendías ha sido cerrado.`,
+                destinatario: ticket.responsable,
                 tipo: 'ticket',
                 targetView: 'view-tickets',
                 targetId: this.currentTicketId

@@ -181,6 +181,7 @@ body:not(.login-body) { display: flex; }
 .badge-status.atencion { background: #FCE7F3; color: #9D174D; }
 .badge-status.espera { background: #FEF3C7; color: #92400E; }
 .badge-status.resuelto { background: #D1FAE5; color: #065F46; }
+.badge-status.cancelada { background: #FEE2E2; color: #DC2626; } /* Nuevo estado para cancelada */
 
 #btn-nuevo-ticket { background-color: var(--primary-red); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.3s; }
 #btn-nuevo-ticket:hover { background-color: var(--primary-red-hover); }
@@ -229,7 +230,7 @@ body:not(.login-body) { display: flex; }
 /* MODAL NUEVO TICKET */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); z-index: 300; display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
 .modal-overlay.active { opacity: 1; visibility: visible; }
-.modal-content { background: #FFFFFF; width: 100%; max-width: 550px; border-radius: 8px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; transform: translateY(20px); transition: transform 0.3s ease; }
+.modal-content { background: #FFFFFF; width: 100%; max-width: 550px; border-radius: 8px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); display: flex; flex-direction: column; transform: translateY(20px); transition: transform 0.3s ease; overflow: visible !important; }
 .modal-overlay.active .modal-content { transform: translateY(0); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 25px; border-bottom: 1px solid #E5E7EB; }
 .modal-header h2 { font-family: var(--font-sans); font-size: 1.2rem; font-weight: 700; color: var(--text-dark); }
@@ -532,7 +533,7 @@ body:not(.login-body) { display: flex; }
     padding: 5px 0;
     margin: 5px 0 0 0;
     display: none; /* Oculto por defecto */
-    z-index: 100;
+    z-index: 9999 !important; /* Asegura que flote por encima de todo */
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
@@ -558,4 +559,337 @@ body:not(.login-body) { display: flex; }
     font-weight: normal;
     font-size: 0.9rem;
     color: #374151;
+}
+
+/* =========================================
+   CALENDARIO ESTILO MÓDULO RH (ADAPTADO)
+   ========================================= */
+
+.calendar-container {
+    background: #FFFFFF;
+    border-radius: 10px;
+    border: 1px solid #E5E7EB;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    margin-bottom: 30px;
+    overflow: hidden;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #E5E7EB;
+}
+
+.calendar-title {
+    font-family: var(--font-serif);
+    font-size: 1.3rem;
+    color: var(--text-dark);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.calendar-nav {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.calendar-nav .btn-icon {
+    background: #F3F4F6;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-weight: bold;
+    color: #4B5563;
+    transition: all 0.2s;
+}
+
+.calendar-nav .btn-icon:hover {
+    background: #E5E7EB;
+}
+
+.calendar-controls {
+    display: flex;
+    gap: 5px;
+    background: #F3F4F6;
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.cal-btn {
+    background: transparent;
+    border: none;
+    padding: 6px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6B7280;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cal-btn.active {
+    background: #FFFFFF;
+    color: #111827;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    border-left: 1px solid #E5E7EB;
+}
+
+.calendar-day-name {
+    background: #F9FAFB;
+    padding: 10px;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6B7280;
+    text-transform: uppercase;
+    border-bottom: 1px solid #E5E7EB;
+    border-right: 1px solid #E5E7EB;
+}
+
+/* Contenedor de la celda del día (Tamaño fijo) */
+.calendar-cell {
+    height: 110px !important; /* 👈 Altura fija para que todos midan lo mismo */
+    max-height: 110px !important;
+    padding: 8px;
+    border-bottom: 1px solid #E5E7EB;
+    border-right: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden !important; /* 👈 Evita que el contenido deforme la celda */
+    position: relative;
+}
+
+.calendar-cell.empty { background: #FAFAFA; }
+.calendar-cell.today { background: #FFF9F9; }
+
+.calendar-date-num {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #111827;
+    align-self: flex-end;
+    margin-bottom: 4px;
+}
+
+.calendar-cell.today .calendar-date-num {
+    background: var(--primary-red);
+    color: white;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+/* Píldoras de eventos dentro del calendario */
+.event-pill {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+    white-space: nowrap; /* 👈 Mantiene todo en una sola línea */
+    overflow: hidden;    /* 👈 Oculta el texto que se salga */
+    text-overflow: ellipsis; /* 👈 Agrega los puntos suspensivos (...) */
+    cursor: pointer;
+    border-left: 3px solid;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.event-pill.trainee {
+    background: #E8F0FE;
+    color: #1A73E8;
+    border-left-color: #1A73E8;
+}
+
+.event-pill.jcf {
+    background: #FFF0F2;
+    color: var(--primary-red);
+    border-left-color: var(--primary-red);
+}
+
+/* Lista de eventos (Vista Semana / Día) */
+.agenda-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+}
+
+.agenda-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 15px;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    background: #FFFFFF;
+}
+
+.agenda-time {
+    font-weight: 700;
+    color: var(--primary-red);
+    font-size: 1rem;
+    min-width: 70px;
+}
+
+.agenda-info h4 {
+    font-size: 0.95rem;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.agenda-info p {
+    font-size: 0.8rem;
+    color: #6B7280;
+}
+
+/* ✅ Tooltip flotante para mostrar el título completo al pasar el cursor */
+.event-pill:hover::after {
+    content: attr(title); /* Toma el texto del atributo 'title' que inyecta el JS */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 110%; /* Aparece por encima de la píldora */
+    background: #1E293B;
+    color: #FFFFFF;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: normal;
+    word-break: break-word;
+    width: max-content;
+    max-width: 220px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    pointer-events: none;
+}
+
+/* ✅ SOLUCIÓN DEFINITIVA: Forzar que el desplegable de participantes salga del modal */
+#meeting-modal .modal-content {
+    overflow: visible !important;
+}
+
+#meeting-modal .modal-body {
+    overflow: visible !important;
+    max-height: none !important;
+}
+
+#meeting-modal .dropdown-check-list .items {
+    z-index: 9999 !important;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: #FFFFFF;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+#meeting-modal .dropdown-check-list .items.visible {
+    display: block;
+}
+
+
+/* Asegurar que los canvas de las gráficas siempre tengan su tamaño */
+#chart-tendencia,
+#chart-paises,
+#chart-consultores,
+#chart-tickets {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+/* ✅ Clase para evitar el hover en las tarjetas con gráficas */
+.card.no-hover:hover {
+    transform: none !important; /* 👈 Evita que se mueva */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important; /* Sombra original */
+    border-color: #7e8083 !important; /* Borde original */
+}
+
+/* Estilos para el menú desplegable */
+.toggle-submenu {
+    cursor: pointer;
+    font-weight: 600;
+}
+.chevron-icon {
+    transition: transform 0.3s ease;
+}
+.submenu-list {
+    animation: slideDown 0.3s ease forwards;
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+/* Para que el submenú active las pantallas correctamente */
+.submenu-list .menu-item {
+    padding: 10px 15px;
+    font-size: 0.85rem;
+}
+
+/* Estilos para el submenú desplegable */
+.submenu-list {
+    transition: all 0.3s ease;
+    border-left: 2px solid var(--primary-red); /* Una rayita roja a la izquierda */
+    margin-left: 10px;
+}
+
+/* Estilo para el título del menú cuando está activo */
+.toggle-submenu.active {
+    background-color: var(--primary-red);
+    color: white;
+}
+
+/* Para que los submenús tengan un poco de padding */
+.submenu-list .menu-item {
+    padding: 10px 15px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    margin-bottom: 2px;
+}
+
+.submenu-list .menu-item:hover {
+    background-color: #fff;
+    color: var(--primary-red);
+}
+
+/* Ejemplo: Si tu clase se llama .date-badge o .event-date */
+.event-date {
+    /* Fondo rojo muy clarito para que no opaque el texto */
+    background-color: #FEF2F2; /* O usa rgba(220, 38, 38, 0.1) */
+    
+    /* Borde rojo de la paleta */
+    border: 1px solid #DC2626 !important; 
+    
+    /* Color del texto (número y mes) */
+    color: #DC2626 !important; 
+    
+    /* Opcional: darle un poco de sombra o redondeo */
+    border-radius: 8px;
+    padding: 5px;
 }

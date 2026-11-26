@@ -3,18 +3,16 @@ import { DocumentController } from './controllers/DocumentController.js';
 import { GlobalSearchController } from './controllers/GlobalSearchController.js';
 import { TicketDetailController } from './controllers/TicketDetailController.js';
 import { NotificationController } from './controllers/NotificationController.js';
-
 import { TicketModel } from './models/TicketModel.js';
 import { DocumentModel } from './models/DocumentModel.js';
+import { UserModel } from './models/UserModel.js'; 
+import { HoursController } from './controllers/HoursController.js';
+import { ReportController } from './controllers/ReportController.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     
-// =============================================
-// ✅ 0. SISTEMA DE ROLES Y PERMISOS
-// =============================================
 let currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
 
-// 🔒 NUEVO: Si no hay usuario O el usuario está inactivo, lo sacamos
 if (!currentUser || currentUser.estado === 'Inactivo') {
     sessionStorage.removeItem('innology_user');
     sessionStorage.removeItem('innology_auth');
@@ -26,13 +24,21 @@ if (!currentUser || currentUser.estado === 'Inactivo') {
 window.currentUser = currentUser;
 console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.rol})`);
 
-    // Ocultar menú de Usuarios si no es Administrador
     const menuUsuarios = document.querySelector('.menu-item[data-target="view-usuarios"]');
     if (menuUsuarios) {
         menuUsuarios.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
     }
 
-    // Mostrar datos del usuario en la barra superior
+    const menuHoras = document.querySelector('.menu-item[data-target="view-dashboard"]');
+    if (menuHoras) {
+        menuHoras.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
+    }
+
+    const menuReportes = document.querySelector('.menu-item[data-target="view-reportes"]');
+    if (menuReportes) {
+        menuReportes.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
+    }
+
     const userNameEl = document.querySelector('.user-text strong');
     const userRoleEl = document.querySelector('.user-text span');
     const avatarEl = document.querySelector('.avatar');
@@ -49,27 +55,69 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     const views = document.querySelectorAll('.view-section');
 
     function switchView(targetId) {
+        if (targetId === 'view-dashboard' && currentUser.rol !== 'Administrador') {
+            return;
+        }
+        if (targetId === 'view-reportes' && currentUser.rol !== 'Administrador') {
+            return;
+        }
+
         menuItems.forEach(i => i.classList.remove('active'));
         views.forEach(v => v.classList.remove('active'));
+        
         const target = document.getElementById(targetId);
         if (target) target.classList.add('active');
+
         const activeMenu = document.querySelector(`.menu-item[data-target="${targetId}"]`);
-        if (activeMenu) activeMenu.classList.add('active');
+        if (activeMenu) {
+            activeMenu.classList.add('active');
+            // Si el módulo está dentro del submenú, lo dejamos desplegado
+            const sub = activeMenu.closest('.submenu-list');
+            if (sub) {
+                sub.style.display = 'block';
+                const chev = sub.parentElement.querySelector('.chevron-icon');
+                if (chev) chev.style.transform = 'rotate(180deg)';
+            }
+        }
+        
         window.location.hash = targetId.replace('view-', '');
     }
-
     window.switchView = switchView;
 
     menuItems.forEach(item => {
         item.addEventListener('click', (e) => {
+            if (item.classList.contains('toggle-submenu')) {
+                return; 
+            }
+
             e.preventDefault();
-            switchView(item.getAttribute('data-target'));
+            
+            const target = item.getAttribute('data-target');
+            if (target) {
+                switchView(target);
+            }
+            
             if (window.innerWidth <= 768) window.closeMobileMenu();
         });
     });
 
+    // Submenú "Gestión de Soporte" (abrir / cerrar)
+    document.querySelectorAll('.toggle-submenu').forEach(toggle => {
+        const submenu = toggle.parentElement.querySelector('.submenu-list');
+        const chevron = toggle.querySelector('.chevron-icon');
+        if (!submenu) return;
+
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.stopImmediatePropagation(); // evita que otro listener lo vuelva a alternar
+            const abierto = submenu.style.display !== 'none';
+            submenu.style.display = abierto ? 'none' : 'block';
+            if (chevron) chevron.style.transform = abierto ? '' : 'rotate(180deg)';
+        });
+    });
+
     const hash = window.location.hash.replace('#', '');
-    if (hash && document.getElementById('view-' + hash)) {
+    if (hash && hash !== 'detalle-ticket' && document.getElementById('view-' + hash)) {
         switchView('view-' + hash);
     }
 
@@ -77,23 +125,28 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     const ticketModel = new TicketModel();
     const documentModel = new DocumentModel();
 
-    // 3. Inicializar Controladores
-    if (document.getElementById('view-inicio')) new DashboardController();
-    if (document.getElementById('view-documentos')) new DocumentController(documentModel);
-    new GlobalSearchController(ticketModel, documentModel, null);
-
-    // ✅ CORREGIDO: Pasamos el rol y el nombre reales del usuario logueado
-    // Mapeo: "Administrador" → "admin", "Consultor" → "consultor", "Solicitante" → "cliente"
     const rolMap = {
         'Administrador': 'admin',
         'Consultor': 'consultor',
         'Solicitante': 'cliente'
     };
     const userRoleNormalized = rolMap[currentUser.rol] || 'cliente';
+
+    // 3. Inicializar Controladores
+    if (document.getElementById('view-inicio')) new DashboardController();
+    if (document.getElementById('view-documentos')) new DocumentController(documentModel, userRoleNormalized, currentUser.nombre);
+    new GlobalSearchController(ticketModel, documentModel, null);
+
     window.ticketDetailController = new TicketDetailController(ticketModel, userRoleNormalized, currentUser.nombre);
-    console.log(`🔧 TicketDetailController inicializado con rol: ${userRoleNormalized} | usuario: ${currentUser.nombre}`);
     
-    // ✅ INICIALIZAMOS NOTIFICACIONES
+    if (document.getElementById('view-dashboard') && currentUser.rol === 'Administrador') {
+        new HoursController();
+    }
+
+    if (document.getElementById('view-reportes')) {
+        new ReportController();
+    }
+
     new NotificationController();
 
     if (document.getElementById('view-usuarios')) {
@@ -102,11 +155,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             .catch(error => console.warn("⚠️ Módulo de usuarios no cargado:", error));
     }
 
-
-    // =============================================
-    // ✅ NUEVO: Lógica de los Accesos Rápidos del Inicio
-    // =============================================
-    
+    // ✅ Lógica de los Accesos Rápidos del Inicio
     const btnQuickTicket = document.getElementById('btn-quick-ticket');
     if (btnQuickTicket) {
         btnQuickTicket.addEventListener('click', () => {
@@ -116,6 +165,10 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 document.getElementById('new-ticket-title').value = '';
                 document.getElementById('new-ticket-description').value = '';
                 document.getElementById('new-ticket-type').value = 'Funcional';
+                
+                const inputEmpresa = document.getElementById('new-ticket-empresa');
+                if(inputEmpresa) inputEmpresa.value = currentUser.empresa || '';
+
                 document.getElementById('conditional-fields').style.display = 'block';
                 document.getElementById('group-funcional').style.display = 'block';
                 document.getElementById('group-tecnico').style.display = 'none';
@@ -125,14 +178,10 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     }
 
     const btnQuickDocs = document.getElementById('btn-quick-docs');
-    if (btnQuickDocs) {
-        btnQuickDocs.addEventListener('click', () => switchView('view-documentos'));
-    }
+    if (btnQuickDocs) btnQuickDocs.addEventListener('click', () => switchView('view-documentos'));
 
     const btnQuickCalendar = document.getElementById('btn-quick-calendar');
-    if (btnQuickCalendar) {
-        btnQuickCalendar.addEventListener('click', () => switchView('view-calendario'));
-    }
+    if (btnQuickCalendar) btnQuickCalendar.addEventListener('click', () => switchView('view-calendario'));
 
     const linkVerCalendario = document.getElementById('link-ver-calendario');
     if (linkVerCalendario) {
@@ -183,6 +232,19 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
+    function formatearFechaAmigable(fechaString) {
+        if (!fechaString) return '-';
+        if (fechaString.includes('Hoy')) return fechaString;
+        const hoy = new Date();
+        const fechaTicket = new Date(fechaString);
+        if (isNaN(fechaTicket.getTime())) return fechaString; 
+        if (fechaTicket.getDate() === hoy.getDate() && fechaTicket.getMonth() === hoy.getMonth() && fechaTicket.getFullYear() === hoy.getFullYear()) {
+            const hora = fechaString.includes(',') ? fechaString.split(',')[1].trim() : '';
+            return `Hoy${hora ? ', ' + hora : ''}`;
+        }
+        return fechaString;
+    }
+
     // =============================================
     // 5. LÓGICA DE TICKETS (CON FILTRO POR ROL)
     // =============================================
@@ -191,7 +253,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         if (!tbody) return;
         tbody.innerHTML = '';
         
-        // ✅ FILTRO POR ROL
         let ticketsAMostrar = ticketModel.getAllTickets();
         
         if (currentUser.rol === 'Solicitante') {
@@ -199,7 +260,25 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         } else if (currentUser.rol === 'Consultor') {
             ticketsAMostrar = ticketsAMostrar.filter(t => t.responsable === currentUser.nombre);
         }
-        // El Administrador ve todos (no filtramos)
+
+        const filtroTexto = document.getElementById('filter-text')?.value.toLowerCase().trim() || '';
+        const filtroEstado = document.getElementById('filter-status')?.value || 'todos';
+        const filtroPrioridad = document.getElementById('filter-priority')?.value || 'todas';
+
+        ticketsAMostrar = ticketsAMostrar.filter(ticket => {
+            const coincideTexto = filtroTexto === '' || 
+                ticket.id.toLowerCase().includes(filtroTexto) || 
+                ticket.title.toLowerCase().includes(filtroTexto);
+
+            const estadoParaFiltro = (!ticket.responsable || ticket.responsable === 'Sin asignar') 
+                ? 'En espera' 
+                : ticket.status;
+
+            const coincideEstado = filtroEstado === 'todos' || estadoParaFiltro === filtroEstado;
+            const coincidePrioridad = filtroPrioridad === 'todas' || ticket.priority === filtroPrioridad;
+
+            return coincideTexto && coincideEstado && coincidePrioridad;
+        });
 
         ticketsAMostrar.forEach(ticket => {
             const tr = document.createElement('tr');
@@ -240,17 +319,13 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     priorityBadge.textContent = ticket.priority;
                     priorityBadge.className = 'badge-priority ' + priorityClass;
 
-                    // ✅ CÓDIGO CORREGIDO: Filtra las horas si no es admin
                     const timeline = document.getElementById('drawer-timeline');
                     if (timeline) {
                         timeline.innerHTML = '';
-                        
-                        // Obtenemos el historial y lo filtramos
                         const historialTicket = ticketModel.getHistoryByTicketId(ticket.id) || [];
                         const esAdmin = currentUser.rol === 'Administrador';
                         
                         const historialFiltrado = historialTicket.filter(item => {
-                            // Si es registro de horas y NO es admin, lo ocultamos
                             if (item.tipo === 'horas' && !esAdmin) return false;
                             return true;
                         });
@@ -274,7 +349,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                         if (ticket.archivos && ticket.archivos.length > 0) {
                             filesSection.style.display = 'block';
                             ticket.archivos.forEach((fileObj) => {
-                                const url = URL.createObjectURL(fileObj.file);
+                                const url = (fileObj.file instanceof Blob) ? URL.createObjectURL(fileObj.file) : '';
                                 const li = document.createElement('li');
                                 li.innerHTML = `
                                     <div class="attachment-item">
@@ -282,7 +357,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                                             <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
                                             <span class="attachment-name" title="${fileObj.name}">${fileObj.name}</span>
                                         </div>
-                                        <div class="attachment-actions">
+                                        <div class="attachment-actions" ${url ? '' : 'style="display:none;"'}>
                                             <button class="btn-action" title="Previsualizar" onclick="window.open('${url}', '_blank')">
                                                 <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
                                             </button>
@@ -325,8 +400,16 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         document.addEventListener('ticketUpdated', window.handleTicketUpdated);
     }
 
+    // ✅ Lógica de los filtros de tickets
+    const filterText = document.getElementById('filter-text');
+    const filterStatus = document.getElementById('filter-status');
+    const filterPriority = document.getElementById('filter-priority');
+
+    if (filterText) filterText.addEventListener('input', () => renderTickets());
+    if (filterStatus) filterStatus.addEventListener('change', () => renderTickets());
+    if (filterPriority) filterPriority.addEventListener('change', () => renderTickets());
+
     function updateBadge() {
-        // ✅ El badge se filtra según el rol también
         let allTickets = ticketModel.getAllTickets();
         
         if (currentUser.rol === 'Solicitante') {
@@ -344,21 +427,15 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         }
 
         const countAbiertos = document.getElementById('count-abiertos');
-        if (countAbiertos) {
-            countAbiertos.textContent = abiertos;
-        }
+        if (countAbiertos) countAbiertos.textContent = abiertos;
 
-        const enEspera = allTickets.filter(t => t.status === 'En espera').length;
-        const cardEnEspera = document.querySelectorAll('.summary-card p')[2];
-        if (cardEnEspera && cardEnEspera.previousElementSibling) {
-            cardEnEspera.previousElementSibling.textContent = enEspera;
-        }
+        const sinAsignar = allTickets.filter(t => !t.responsable || t.responsable === 'Sin asignar').length;
+        const countEspera = document.getElementById('count-espera');
+        if (countEspera) countEspera.textContent = sinAsignar;
 
         const resueltos = allTickets.filter(t => t.status === 'Resuelto').length;
-        const cardResueltos = document.querySelectorAll('.summary-card p')[3];
-        if (cardResueltos && cardResueltos.previousElementSibling) {
-            cardResueltos.previousElementSibling.textContent = resueltos;
-        }
+        const countResueltos = document.getElementById('count-resueltos');
+        if (countResueltos) countResueltos.textContent = resueltos;
     }
 
     renderTickets();
@@ -391,15 +468,16 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             if (modal) {
                 document.getElementById('new-ticket-title').value = '';
                 document.getElementById('new-ticket-description').value = '';
-                
                 archivosTemporales = [];
                 renderFilePreview();
                 
+                const inputEmpresa = document.getElementById('new-ticket-empresa');
+                if(inputEmpresa) inputEmpresa.value = currentUser.empresa || '';
+
                 document.getElementById('new-ticket-type').value = 'Funcional';
                 document.getElementById('conditional-fields').style.display = 'block';
                 document.getElementById('group-funcional').style.display = 'block';
                 document.getElementById('group-tecnico').style.display = 'none';
-
                 modal.classList.add('active');
             }
         });
@@ -440,6 +518,8 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const priority = document.getElementById('new-ticket-priority').value;
             const description = document.getElementById('new-ticket-description').value.trim();
             const typeValue = document.getElementById('new-ticket-type').value;
+            
+            const empresaTicket = document.getElementById('new-ticket-empresa').value.trim();
 
             if (title === '' || description === '') {
                 alert('Llena el asunto y la descripción');
@@ -469,45 +549,53 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 contexto: '',
                 medioRecepcion: 'Portal',
                 enlaceExterno: '',
-                solicitante: currentUser.nombre, // ✅ AQUÍ SE GUARDA EL NOMBRE DEL QUE CREA
-                empresa: currentUser.empresa || 'Grupo Atlas' // ✅ Y SU EMPRESA
+                solicitante: currentUser.nombre, 
+                empresa: empresaTicket || currentUser.empresa || 'Innology Services',
+                fechaExacta: new Date().toISOString().split('T')[0]
             };
 
             
             const newTicket = ticketModel.createTicket(title, category, priority, description, archivosTemporales, extraData);
-            
-            archivosTemporales.forEach(fileObj => {
-                documentModel.addDocumentFromTicket(
-                    fileObj.name, 
-                    'Tickets', 
-                    fileObj.file, 
-                    newTicket.id
-                );
-            });
+
+            if (!newTicket || !newTicket.id) {
+                alert('No se pudo crear el ticket. Revisa la consola (F12).');
+                return;
+            }
+
+            try {
+                archivosTemporales.forEach(fileObj => {
+                    documentModel.addDocumentFromTicket(fileObj.name, 'Tickets', fileObj.file, newTicket.id, currentUser.nombre);
+                });
+            } catch (error) {
+                console.error('⚠️ Error al guardar los documentos del ticket:', error);
+            }
             
             renderTickets();
             updateBadge();
             
             document.dispatchEvent(new CustomEvent('documentAdded'));
             
-            // ✅ NOTIFICACIÓN AL CLIENTE Y AL ADMIN
-            if (window.notify) {
-                window.notify({
-                    titulo: 'Ticket Creado',
-                    mensaje: `Tu ticket ${newTicket.id} ha sido registrado.`,
-                    destinatario: currentUser.nombre,
-                    tipo: 'ticket',
-                    targetView: 'view-tickets',
-                    targetId: newTicket.id
-                });
-                window.notify({
-                    titulo: 'Nuevo Ticket',
-                    mensaje: `El cliente creó el ticket ${newTicket.id}`,
-                    destinatario: 'Administrador',
-                    tipo: 'ticket',
-                    targetView: 'view-tickets',
-                    targetId: newTicket.id
-                });
+            try {
+                if (window.notify) {
+                    window.notify({
+                        titulo: 'Ticket Creado',
+                        mensaje: `Tu ticket ${newTicket.id} ha sido registrado.`,
+                        destinatario: currentUser.nombre,
+                        tipo: 'ticket',
+                        targetView: 'view-tickets',
+                        targetId: newTicket.id
+                    });
+                    window.notify({
+                        titulo: 'Nuevo Ticket',
+                        mensaje: `El cliente creó el ticket ${newTicket.id}`,
+                        destinatario: 'Administrador',
+                        tipo: 'ticket',
+                        targetView: 'view-tickets',
+                        targetId: newTicket.id
+                    });
+                }
+            } catch (error) {
+                console.error('⚠️ Error al enviar las notificaciones:', error);
             }
             
             document.getElementById('new-ticket-title').value = '';
@@ -521,10 +609,14 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             document.getElementById('group-tecnico').style.display = 'none';
 
             closeModal();
+
+            if (window.ticketDetailController) {
+                window.ticketDetailController.openTicket(newTicket.id);
+            }
         });
     }
 
-    // 6. Menú móvil, notificaciones, calendario
+    // 6. Menú móvil, notificaciones
     const sidebar = document.getElementById('sidebar');
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     const overlay = document.getElementById('overlay');
@@ -550,7 +642,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    // 7. NOTIFICACIONES (La campanita y el toggle)
     const notifContainer = document.getElementById('notifications-container');
     const notifDropdown = document.getElementById('notifications-dropdown');
     const bellIcon = document.getElementById('bell-icon');
@@ -568,127 +659,396 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         }
     });
 
-    // 8. Lógica del Calendario
-    const btnVerCalendario = document.querySelector('.card a.link-red[href="#"]');
-    if (btnVerCalendario) {
-        btnVerCalendario.addEventListener('click', (e) => {
-            e.preventDefault();
-            switchView('view-calendario');
+    
+    let fechaActual = new Date();
+    
+    let events = [
+        { id: 1, date: "2026-11-05", time: "11:00", title: "Prueba de noviembre", type: "jcf", estado: "Pendiente", creador: "Laura Méndez", modalidad: "Online", enlace: "" },
+        { id: 2, date: "2026-11-09", time: "10:00", title: "Revisión de avances", type: "trainee", estado: "Programada", creador: "Laura Méndez", modalidad: "Presencial", enlace: "" }
+    ];
+
+    const eventosGuardados = localStorage.getItem('innology_reuniones');
+    if (eventosGuardados) {
+        try {
+            events = JSON.parse(eventosGuardados);
+        } catch (e) {
+            console.warn('⚠️ innology_reuniones tenía datos inválidos, se usan los de ejemplo.', e);
+        }
+    }
+
+    function obtenerEventosVisibles() {
+        const esAdmin = currentUser.rol === 'Administrador';
+        
+        if (esAdmin) {
+            return events;
+        }
+
+        return events.filter(ev => {
+            const esCreador = ev.creadorCorreo === currentUser.correo || ev.creador === currentUser.nombre;
+            const estaInvitado = ev.participantes && ev.participantes.some(p => 
+                p.correo === currentUser.correo || p.nombre === currentUser.nombre
+            );
+            return esCreador || estaInvitado;
         });
     }
 
-    const today = new Date();
-    let currentMonth = today.getMonth(); 
-    let currentYear = today.getFullYear(); 
+    function getMonthName(m) {
+        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        return meses[m];
+    }
 
-    const events = [
-        { date: "2026-10-19", time: "09:00", title: "Capacitación a usuarios clave" },
-        { date: "2026-10-21", time: "10:00", title: "Reunión de seguimiento semanal" },
-        { date: "2026-10-29", time: "10:30", title: "Revisión de pruebas de cuentas por pagar" },
-        { date: "2026-11-05", time: "11:00", title: "Prueba de noviembre" }
-    ];
+    function formatoHora(hora) {
+        if (!hora) return '';
+        const [h, m] = hora.split(':');
+        const ampm = parseInt(h) >= 12 ? 'PM' : 'AM';
+        const h12 = parseInt(h) % 12 || 12;
+        return `${h12}:${m} ${ampm}`;
+    }
 
-    function renderCalendar() {
-        const calendarDays = document.getElementById('calendar-days');
-        const monthYearLabel = document.getElementById('calendar-month-year');
-        const eventsList = document.getElementById('calendar-events-list');
-        if (!calendarDays) return;
+    function renderCalendario() {
+        const mesAnioTexto = document.getElementById('calendar-month-year');
+        if (mesAnioTexto) {
+            try {
+                const year = fechaActual.getFullYear();
+                const month = fechaActual.getMonth();
 
-        calendarDays.innerHTML = '';
-        if (eventsList) eventsList.innerHTML = '';
-
-        const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-        if (monthYearLabel) monthYearLabel.textContent = `${monthNames[currentMonth]} de ${currentYear}`;
-
-        const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
-        const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-        let startDay = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; 
-
-        for (let i = 0; i < startDay; i++) {
-            const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'calendar-day empty';
-            calendarDays.appendChild(emptyDiv);
+                mesAnioTexto.textContent = `${getMonthName(month)} ${year}`;
+                document.getElementById('view-cal-month').style.display = 'block';
+                document.getElementById('view-cal-list').style.display = 'none';
+                dibujarMes(year, month);
+                renderTablaInferior();
+            } catch (e) {
+                console.error('Error al dibujar el calendario:', e);
+            }
         }
 
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-            const dayEvents = events.filter(e => e.date === dateStr);
-            
-            const dayDiv = document.createElement('div');
-            dayDiv.className = 'calendar-day';
-            
-            const todayDate = new Date();
-            if (currentMonth === todayDate.getMonth() && currentYear === todayDate.getFullYear() && day === todayDate.getDate()) {
-                dayDiv.classList.add('today');
-            }
+        // Tarjeta del Inicio (protegida para que nunca rompa la página)
+        try { renderProximosEventos(); } catch (e) { console.error('Error en Próximos eventos:', e); }
+    }
 
-            let dayHTML = `<div class="calendar-day-number">${day}</div>`;
+
+    function dibujarMes(year, month) {
+        const contenedor = document.getElementById('calendar-days');
+        if (!contenedor) return;
+        contenedor.innerHTML = '';
+
+        const eventosVisibles = obtenerEventosVisibles();
+
+        const primerDia = new Date(year, month, 1).getDay(); 
+        const diasEnMes = new Date(year, month + 1, 0).getDate();
+        let offset = primerDia === 0 ? 6 : primerDia - 1;
+
+        for (let i = 0; i < offset; i++) {
+            contenedor.innerHTML += `<div class="calendar-cell empty"></div>`;
+        }
+
+        const hoy = new Date();
+        const esHoyMes = hoy.getMonth() === month && hoy.getFullYear() === year;
+
+        for (let d = 1; d <= diasEnMes; d++) {
+            const esHoy = esHoyMes && hoy.getDate() === d;
+            const fechaStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
             
-            if (dayEvents.length > 0) {
-                dayHTML += `<div style="display: flex; flex-direction: column; gap: 3px; margin-top: 5px; overflow: hidden;">`;
-                dayEvents.forEach(event => {
-                    dayHTML += `
-                        <div class="calendar-event-block" style="background-color: #E11D48; color: #FFFFFF; padding: 4px 6px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#9F1239'" onmouseout="this.style.backgroundColor='#E11D48'" title="${event.title} - ${event.time}">
-                            ${event.title}
-                        </div>
-                    `;
-                });
-                dayHTML += `</div>`;
-            }
+            const eventosDelDia = eventosVisibles.filter(e => e.date === fechaStr);
 
-            dayDiv.innerHTML = dayHTML;
-            calendarDays.appendChild(dayDiv);
-
-            dayEvents.forEach(event => {
-                if (!eventsList) return;
-                const item = document.createElement('div');
-                item.className = 'event-item';
-                item.innerHTML = `
-                    <div class="event-date">
-                        <strong>${day}</strong>
-                        <span>${monthNames[currentMonth].substring(0, 3).toLowerCase()}</span>
-                    </div>
-                    <div class="event-info">
-                        <h4>${event.title}</h4>
-                        <p>${event.time}, Reunión</p>
-                    </div>
-                `;
-                eventsList.appendChild(item);
+            let htmlEventos = '';
+            eventosDelDia.forEach(ev => {
+                const tipo = ev.type || 'jcf'; 
+                htmlEventos += `<div class="event-pill ${tipo}" title="${ev.title} - ${ev.time}">${ev.time} - ${ev.title}</div>`;
             });
+
+            contenedor.innerHTML += `
+                <div class="calendar-cell ${esHoy ? 'today' : ''}">
+                    <span class="calendar-date-num">${d}</span>
+                    ${htmlEventos}
+                </div>
+            `;
         }
+    }
+
+    function renderTablaInferior() {
+        const tbody = document.getElementById('entrevistas-tbody');
+        if (!tbody) return;
+
+        const eventosVisibles = obtenerEventosVisibles();
+        const year = fechaActual.getFullYear();
+        const month = fechaActual.getMonth();
+
+        const eventosDelMes = eventosVisibles.filter(e => {
+            if (!e.date) return false;
+            const d = new Date(e.date + 'T00:00:00');
+            return d.getMonth() === month && d.getFullYear() === year;
+        }).sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (a.time || '').localeCompare(b.time || '');
+        });
+
+        if (eventosDelMes.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#9CA3AF;">No hay eventos programados para este mes.</td></tr>`;
+            return;
+        }
+
+        const puedeEditar = currentUser.rol === 'Administrador' || currentUser.rol === 'Consultor';
+
+        tbody.innerHTML = eventosDelMes.map(ev => {
+            const d = new Date(ev.date + 'T00:00:00');
+            const dia = String(d.getDate()).padStart(2, '0');
+            const mes = getMonthName(d.getMonth()).substring(0, 3).toLowerCase();
+            const anio = d.getFullYear();
+            const fechaFormateada = `${dia} ${mes} ${anio}`;
+
+            const tipoClass = 'jcf'; 
+            const tipoText = 'Reunión';
+            
+            const estado = ev.estado || 'Programada';
+            let badgeEstado = 'espera'; // Amarillo
+            if (estado === 'En proceso') badgeEstado = 'atencion'; // Morado
+            if (estado === 'Completada') badgeEstado = 'resuelto'; // Verde
+            if (estado === 'Cancelada') badgeEstado = 'cancelada'; // Rojo
+            
+            const enlaceHTML = ev.enlace 
+                ? `<a href="${ev.enlace}" target="_blank" style="color:var(--primary-red); font-weight:600; font-size:0.8rem;">Link</a>` 
+                : '-';
+
+            const accionesHTML = puedeEditar 
+                ? `
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn-action" title="Editar" onclick="window.editarReunion('${ev.id}')">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                  `
+                : `<span style="color:#9CA3AF; font-size:0.8rem;">-</span>`;
+
+            return `
+                <tr class="ticket-row">
+                    <td><strong>${ev.title}</strong></td>
+                    <td><span class="event-pill ${tipoClass}" style="display:inline-block; border:none; background:transparent; padding:0; font-size: 0.75rem; font-weight: 600;">${tipoText}</span></td>
+                    <td>${fechaFormateada}</td>
+                    <td>${formatoHora(ev.time)}</td>
+                    <td>${ev.modalidad || 'Online'}</td>
+                    <td>${enlaceHTML}</td>
+                    <td><span class="badge-status ${badgeEstado}">${estado}</span></td>
+                    <td>${accionesHTML}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+
+    // =============================================
+    // PRÓXIMOS EVENTOS (tarjeta del Inicio)
+    // =============================================
+    function renderProximosEventos() {
+        const cont = document.getElementById('proximos-eventos-list');
+        if (!cont) return;
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const proximos = obtenerEventosVisibles()
+            .filter(ev => {
+                if (!ev.date) return false;
+                const f = new Date(ev.date + 'T00:00:00');
+                return f >= hoy && ev.estado !== 'Cancelada' && ev.estado !== 'Completada';
+            })
+            .sort((a, b) => a.date !== b.date
+                ? a.date.localeCompare(b.date)
+                : (a.time || '').localeCompare(b.time || ''))
+            .slice(0, 4);
+
+        if (proximos.length === 0) {
+            cont.innerHTML = `<p style="color:#9CA3AF; font-size:0.85rem; margin:0;">No hay eventos próximos.</p>`;
+            return;
+        }
+
+        cont.innerHTML = proximos.map(ev => {
+            const d = new Date(ev.date + 'T00:00:00');
+            const dia = String(d.getDate()).padStart(2, '0');
+            const mes = getMonthName(d.getMonth()).substring(0, 3);
+            return `
+                <div style="display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #F3F4F6;">
+                    <div style="min-width:44px; text-align:center; background:#FEE2E2; color:#b3001b; border-radius:6px; padding:4px 0;">
+                        <div style="font-size:1rem; font-weight:700; line-height:1;">${dia}</div>
+                        <div style="font-size:0.65rem; text-transform:uppercase;">${mes}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.85rem; font-weight:600;">${ev.title}</div>
+                        <div style="font-size:0.75rem; color:#6B7280;">${formatoHora(ev.time)} · ${ev.modalidad || 'Online'}</div>
+                    </div>
+                </div>`;
+        }).join('');
+    }
+
+    // =============================================
+    // CUMPLEAÑOS (tarjeta del Inicio) - próximos 30 días
+    // =============================================
+    function renderCumpleanos() {
+        const cont = document.getElementById('cumpleanos-list');
+        if (!cont) return;
+
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+
+        const usuarios = new UserModel().getAllUsers().filter(u => u.estado === 'Activo');
+
+        const cumples = usuarios.map(u => {
+            const fecha = u.fechaNacimiento || u.birthdate || u.fecha_nacimiento || u.fechaNac;
+            if (!fecha || typeof fecha !== 'string') return null;
+            const [, m, d] = fecha.substring(0, 10).split('-').map(Number);
+            if (!m || !d) return null;
+
+            let proximo = new Date(hoy.getFullYear(), m - 1, d);
+            if (proximo < hoy) proximo = new Date(hoy.getFullYear() + 1, m - 1, d);
+            const dias = Math.round((proximo - hoy) / 86400000);
+
+            return { nombre: u.nombre, dia: d, mes: m - 1, dias };
+        })
+        .filter(c => c && c.dias <= 30)
+        .sort((a, b) => a.dias - b.dias)
+        .slice(0, 4);
+
+        if (cumples.length === 0) {
+            cont.innerHTML = `<p style="color:#9CA3AF; font-size:0.85rem; margin:0;">No hay cumpleaños próximos.</p>`;
+            return;
+        }
+
+        cont.innerHTML = cumples.map(c => `
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #F3F4F6;">
+                <span style="font-size:0.85rem; font-weight:600;">${c.nombre}</span>
+                <span style="font-size:0.75rem; color:#6B7280;">
+                    ${c.dias === 0 ? '🎉 ¡Hoy!' : `${c.dia} ${getMonthName(c.mes).substring(0, 3).toLowerCase()}`}
+                </span>
+            </div>`).join('');
+    }    
+     
+    function poblarParticipantes(participantesActuales = []) {
+        const userModel = new UserModel();
+        const usuariosActivos = userModel.getAllUsers().filter(u => u.estado === 'Activo');
+        const listaParticipantes = document.querySelector('#dropdown-participantes .items');
+        const anchorParticipantes = document.querySelector('#dropdown-participantes .anchor');
+
+        if (!listaParticipantes || !anchorParticipantes) return;
+
+        listaParticipantes.innerHTML = '';
+        anchorParticipantes.textContent = 'Seleccionar participantes...';
+
+        usuariosActivos.forEach(u => {
+            if (u.id !== currentUser.id) {
+                const li = document.createElement('li');
+                const estaInvitado = participantesActuales.some(p => p.correo === u.correo || p.nombre === u.nombre);
+                const checked = estaInvitado ? 'checked' : '';
+                
+                li.innerHTML = `<label><input type="checkbox" value="${u.correo}" data-nombre="${u.nombre}" ${checked}> ${u.nombre} (${u.rol})</label>`;
+                listaParticipantes.appendChild(li);
+            }
+        });
+
+        if (listaParticipantes.children.length === 0) {
+            listaParticipantes.innerHTML = '<li style="color:#9CA3AF; padding:8px 12px; font-size:0.85rem;">No hay otros usuarios activos</li>';
+        }
+
+        const checkboxes = listaParticipantes.querySelectorAll('input[type="checkbox"]');
+
+        const selectedIniciales = Array.from(checkboxes).filter(c => c.checked).map(c => c.getAttribute('data-nombre'));
+        if (selectedIniciales.length > 0) {
+            anchorParticipantes.textContent = selectedIniciales.join(', ');
+        }
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const selected = Array.from(checkboxes).filter(c => c.checked).map(c => c.getAttribute('data-nombre'));
+                anchorParticipantes.textContent = selected.length > 0 ? selected.join(', ') : 'Seleccionar participantes...';
+            });
+        });
+    }
+
+    window.editarReunion = function(id) {
+        const ev = events.find(e => e.id == id);
+        if (!ev) return;
+
+        document.getElementById('modal-meeting-title').textContent = 'Editar reunión';
+        document.getElementById('meeting-id').value = ev.id;
+        document.getElementById('meeting-title').value = ev.title;
+        document.getElementById('meeting-date').value = ev.date;
+        document.getElementById('meeting-time').value = ev.time;
+        document.getElementById('meeting-estado').value = ev.estado || 'Programada';
+        document.getElementById('meeting-modalidad').value = ev.modalidad || 'Online';
+        document.getElementById('meeting-enlace').value = ev.enlace || '';
+        document.getElementById('meeting-date').removeAttribute('min');
+
+        document.getElementById('meeting-modalidad').dispatchEvent(new Event('change'));
+
+        poblarParticipantes(ev.participantes || []);
+
+        meetingModal.classList.add('active');
+    };
+
+    const selectModalidad = document.getElementById('meeting-modalidad');
+    if (selectModalidad) {
+        selectModalidad.addEventListener('change', (e) => {
+            const groupEnlace = document.getElementById('group-meeting-enlace');
+            if (groupEnlace) {
+                groupEnlace.style.display = e.target.value === 'Online' ? 'block' : 'none';
+            }
+        });
     }
 
     const btnPrev = document.getElementById('btn-prev-month');
     const btnNext = document.getElementById('btn-next-month');
+    const btnToday = document.getElementById('btn-today');
 
     if (btnPrev) {
-        btnPrev.addEventListener('click', () => {
-            currentMonth--;
-            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-            renderCalendar();
-        });
+        btnPrev.onclick = () => {
+            fechaActual.setMonth(fechaActual.getMonth() - 1);
+            renderCalendario();
+        };
     }
-
     if (btnNext) {
-        btnNext.addEventListener('click', () => {
-            currentMonth++;
-            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-            renderCalendar();
-        });
+        btnNext.onclick = () => {
+            fechaActual.setMonth(fechaActual.getMonth() + 1);
+            renderCalendario();
+        };
     }
-    renderCalendar();
+    if (btnToday) {
+        btnToday.onclick = () => {
+            fechaActual = new Date();
+            renderCalendario();
+        };
+    }
 
-    // 9. LÓGICA PARA AGENDAR REUNIÓN
+
     const btnAgendar = document.getElementById('btn-agendar-reunion');
     const meetingModal = document.getElementById('meeting-modal');
     const btnCerrarMeeting = document.getElementById('btn-cerrar-modal-meeting');
     const btnCancelarMeeting = document.getElementById('btn-cancelar-modal-meeting');
     const btnSubmitMeeting = document.getElementById('btn-submit-meeting');
 
+    const dropdownParticipantes = document.getElementById('dropdown-participantes');
+    if (dropdownParticipantes) {
+        const anchor = dropdownParticipantes.querySelector('.anchor');
+        const items = dropdownParticipantes.querySelector('.items');
+        if (anchor && items) {
+            anchor.addEventListener('click', (e) => {
+                e.stopPropagation();
+                items.classList.toggle('visible');
+            });
+
+            items.addEventListener('click', (e) => e.stopPropagation());
+            document.addEventListener('click', () => items.classList.remove('visible'));
+        }
+    }
+
     if (btnAgendar) {
         btnAgendar.addEventListener('click', () => {
+            document.getElementById('meeting-id').value = '';
+            document.getElementById('modal-meeting-title').textContent = 'Agendar reunión';
             document.getElementById('meeting-title').value = '';
             document.getElementById('meeting-time').value = '10:00';
+            document.getElementById('meeting-estado').value = 'Programada';
+            document.getElementById('meeting-modalidad').value = 'Online';
+            document.getElementById('meeting-enlace').value = '';
+            document.getElementById('meeting-enlace').parentElement.style.display = 'block';
             
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1); 
@@ -696,6 +1056,8 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const dateInput = document.getElementById('meeting-date');
             dateInput.min = minDate; 
             dateInput.value = minDate; 
+
+            poblarParticipantes([]);
             
             meetingModal.classList.add('active');
         });
@@ -704,11 +1066,25 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     const closeMeetingModal = () => { if (meetingModal) meetingModal.classList.remove('active'); };
     if (btnCerrarMeeting) btnCerrarMeeting.addEventListener('click', closeMeetingModal);
     if (btnCancelarMeeting) btnCancelarMeeting.addEventListener('click', closeMeetingModal);
+    
     if (btnSubmitMeeting) {
         btnSubmitMeeting.addEventListener('click', () => {
+            const idEditandoRaw = document.getElementById('meeting-id').value;
+            const idEditando = idEditandoRaw ? Number(idEditandoRaw) : null;
+
             const title = document.getElementById('meeting-title').value.trim();
             const date = document.getElementById('meeting-date').value;
             const time = document.getElementById('meeting-time').value;
+            const estadoSeleccionado = document.getElementById('meeting-estado').value;
+            const modalidadSeleccionada = document.getElementById('meeting-modalidad').value;
+            const enlaceIngresado = document.getElementById('meeting-enlace').value.trim();
+            
+            const checkboxesParticipantes = document.querySelectorAll('#dropdown-participantes .items input[type="checkbox"]:checked');
+            const participantes = Array.from(checkboxesParticipantes).map(cb => ({
+                correo: cb.value,
+                nombre: cb.getAttribute('data-nombre')
+            }));
+
             if (title === '' || date === '') {
                 alert('Por favor, llena el título y la fecha.');
                 return;
@@ -718,24 +1094,50 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const todayCheck = new Date();
             todayCheck.setHours(0, 0, 0, 0); 
 
-            if (selectedDate <= todayCheck) {
+            if (!idEditando && selectedDate <= todayCheck) {
                 alert('No puedes agendar una reunión para hoy ni para días pasados. Debe ser con al menos 1 día de anticipación.');
                 return;
             }
-            events.push({
-                id: Date.now(),
-                date: date,
-                time: time,
-                title: title
-            });
+            
+            if (idEditando) {
+                const index = events.findIndex(e => Number(e.id) === idEditando);
+                if (index !== -1) {
+                    events[index] = {
+                        ...events[index],
+                        title: title,
+                        date: date,
+                        time: time,
+                        estado: estadoSeleccionado,
+                        modalidad: modalidadSeleccionada,
+                        enlace: enlaceIngresado,
+                        participantes: participantes
+                    };
+                }
+            } else {
+                events.push({
+                    id: Date.now(),
+                    date: date,
+                    time: time,
+                    title: title,
+                    type: 'reunion', 
+                    estado: estadoSeleccionado,
+                    modalidad: modalidadSeleccionada,
+                    enlace: enlaceIngresado,
+                    participantes: participantes,
+                    creador: currentUser.nombre,
+                    creadorCorreo: currentUser.correo
+                });
+            }
 
-            currentMonth = selectedDate.getMonth();
-            currentYear = selectedDate.getFullYear();
-            renderCalendar();
+            localStorage.setItem('innology_reuniones', JSON.stringify(events));
+
+            fechaActual = selectedDate;
+            renderCalendario();
             closeMeetingModal();
 
-            // ✅ NOTIFICACIÓN DE REUNIÓN
-            if (window.notify) {
+            document.getElementById('meeting-id').value = '';
+
+            if (window.notify && !idEditando) {
                 window.notify({
                     titulo: 'Nueva Reunión',
                     mensaje: `${title} agendada para el ${date} a las ${time}`,
@@ -743,14 +1145,20 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     tipo: 'reunion',
                     targetView: 'view-calendario'
                 });
-                window.notify({
-                    titulo: 'Nueva Reunión',
-                    mensaje: `${title} agendada por el cliente.`,
-                    destinatario: 'Administrador',
-                    tipo: 'reunion',
-                    targetView: 'view-calendario'
+                
+                participantes.forEach(p => {
+                    window.notify({
+                        titulo: 'Invitación a Reunión',
+                        mensaje: `${currentUser.nombre} te invitó a: ${title} el ${date} a las ${time}`,
+                        destinatario: p.nombre,
+                        tipo: 'reunion',
+                        targetView: 'view-calendario'
+                    });
                 });
             }
         });
     }
-});
+
+    renderCalendario();
+    try { renderCumpleanos(); } catch (e) { console.error('Error en Cumpleaños:', e); }
+}); // Fin del DOMContentLoaded
