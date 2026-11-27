@@ -55,6 +55,10 @@ export class EntrevistaController {
         this.view.renderCalendario(this.mes, (fecha) => this.model.delDia(fecha));
         this.view.renderTabla(this.model.filtrar(this.view.obtenerFiltros()));
         this.pintarExpediente();
+
+        // ✅ Guardamos en localStorage y avisamos a la intranet
+        localStorage.setItem('innology_entrevistas', JSON.stringify(this.model.lista || this.model.entrevistas || []));
+        window.dispatchEvent(new Event('rhDataUpdated')); 
     }
 
     moverMes(delta) {
@@ -113,6 +117,11 @@ export class EntrevistaController {
             else await this.model.crear(datos);
             this.cerrarModal();
             this.refrescar();
+            
+            // ✅ AVISO: Notificar cambio en Entrevistas
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se ha ${this.editandoId ? 'actualizado' : 'creado'} una entrevista con ${datos.candidato_nombre || 'un candidato'}.`, tipo: 'entrevista' }
+            }));
         } catch (e) {
             alert('No se pudo guardar: ' + e.message);
         } finally {
@@ -123,9 +132,14 @@ export class EntrevistaController {
     async cambiarEstatus(id, estatus) {
         try {
             await this.model.cambiarEstatus(id, estatus);
+            
+            // ✅ AVISO: Notificar cambio de estado
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se ha cambiado el estado de una entrevista a: ${estatus}.`, tipo: 'entrevista' }
+            }));
         } catch (e) {
             alert('No se pudo cambiar el estado: ' + e.message);
         }
-        this.refrescar();   // si falló, regresa el select al valor real
+        this.refrescar(); 
     }
 }

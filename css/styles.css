@@ -1151,3 +1151,23 @@ body:not(.login-body) { display: flex; }
     border-radius: 8px;
     padding: 5px;
 }
+
+/* ✅ Arreglo para que los modales de RH no se corten en pantallas pequeñas */
+.modal-overlay .modal-content {
+    max-height: 90vh !important; /* Ocupa como máximo el 90% de la pantalla */
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important; /* El contenedor general no tiene scroll */
+}
+
+.modal-overlay .modal-content .modal-body {
+    overflow-y: auto !important; /* Solo el cuerpo del modal hace scroll */
+    flex: 1 !important;          /* Ocupa el espacio disponible */
+    min-height: 0 !important;    /* Necesario para que el flexbox funcione bien */
+    padding-bottom: 20px !important;
+}
+
+.modal-overlay .modal-content .modal-header,
+.modal-overlay .modal-content .modal-footer {
+    flex-shrink: 0 !important; /* El encabezado y el pie nunca se encogen */
+}

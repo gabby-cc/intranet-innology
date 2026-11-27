@@ -5,44 +5,65 @@ import { TicketDetailController } from './controllers/TicketDetailController.js'
 import { NotificationController } from './controllers/NotificationController.js';
 import { TicketModel } from './models/TicketModel.js';
 import { DocumentModel } from './models/DocumentModel.js';
-import { UserModel } from './models/UserModel.js'; 
+import { UserModel } from './models/UserModel.js';
 import { HoursController } from './controllers/HoursController.js';
 import { ReportController } from './controllers/ReportController.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    
-let currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
 
-if (!currentUser || currentUser.estado === 'Inactivo') {
-    sessionStorage.removeItem('innology_user');
-    sessionStorage.removeItem('innology_auth');
-    alert('⛔ Tu cuenta ha sido desactivada o la sesión expiró.');
-    window.location.href = 'index.html';
-    return;
-}
+    let currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
 
-window.currentUser = currentUser;
-console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.rol})`);
+    if (!currentUser || currentUser.estado === 'Inactivo') {
+        sessionStorage.removeItem('innology_user');
+        sessionStorage.removeItem('innology_auth');
+        alert('⛔ Tu cuenta ha sido desactivada o la sesión expiró.');
+        window.location.href = 'index.html';
+        return;
+    }
+
+    window.currentUser = currentUser;
+    console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.rol})`);
+
+    // =============================================
+    // 0. VISIBILIDAD DE MENÚS SEGÚN ROL
+    // =============================================
+    const esAdmin = currentUser.rol === 'Administrador';
+    const esRH = currentUser.rol === 'RH';
 
     const menuUsuarios = document.querySelector('.menu-item[data-target="view-usuarios"]');
-    if (menuUsuarios) {
-        menuUsuarios.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
-    }
+    if (menuUsuarios) menuUsuarios.style.display = esAdmin ? 'flex' : 'none';
 
     const menuHoras = document.querySelector('.menu-item[data-target="view-dashboard"]');
-    if (menuHoras) {
-        menuHoras.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
-    }
+    if (menuHoras) menuHoras.style.display = esAdmin ? 'flex' : 'none';
 
     const menuReportes = document.querySelector('.menu-item[data-target="view-reportes"]');
-    if (menuReportes) {
-        menuReportes.style.display = (currentUser.rol === 'Administrador') ? 'flex' : 'none';
+    if (menuReportes) menuReportes.style.display = esAdmin ? 'flex' : 'none';
+
+    const menuSoporte = document.querySelector('.menu-item[data-target="view-tickets"]')?.closest('.menu-item-group');
+    if (menuSoporte) {
+        menuSoporte.style.display = (esAdmin || currentUser.rol === 'Consultor' || currentUser.rol === 'Solicitante') ? 'block' : 'none';
     }
 
+    // ✅ NUEVO: Ocultar el grupo de menús de RH
+    const menuRHItem = document.querySelector('.menu-item[data-target="view-rh-trainees"]');
+    if (menuRHItem) {
+        const grupo = menuRHItem.closest('.menu-item-group') || menuRHItem.closest('li') || menuRHItem;
+        grupo.style.display = (esAdmin || esRH) ? 'block' : 'none';
+    }
+
+    // ✅ NUEVO: Ocultar el TÍTULO "RECURSOS HUMANOS"
+    const tituloRH = document.getElementById('titulo-rh');
+    if (tituloRH) {
+        tituloRH.style.display = (esAdmin || esRH) ? 'block' : 'none';
+    }
+
+    // =============================================
+    // 1. PERFIL DE USUARIO
+    // =============================================
     const userNameEl = document.querySelector('.user-text strong');
     const userRoleEl = document.querySelector('.user-text span');
     const avatarEl = document.querySelector('.avatar');
-    
+
     if (userNameEl) userNameEl.textContent = currentUser.nombre;
     if (userRoleEl) userRoleEl.textContent = currentUser.rol;
     if (avatarEl) {
@@ -50,28 +71,39 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         avatarEl.textContent = initials;
     }
 
-    // 1. Lógica de Pestañas
+    // =============================================
+    // 2. LÓGICA DE PESTAÑAS
+    // =============================================
     const menuItems = document.querySelectorAll('.menu-item');
     const views = document.querySelectorAll('.view-section');
 
     function switchView(targetId) {
-        if (targetId === 'view-dashboard' && currentUser.rol !== 'Administrador') {
-            return;
+        if (esRH) {
+            const permitidas = [
+                'view-inicio', 'view-rh-trainees', 'view-rh-jcf',
+                'view-rh-entrevistas', 'view-rh-horas', 'view-rh-documentos',
+                'view-rh-expediente', 'view-rh-expediente-jcf'
+            ];
+            if (!permitidas.includes(targetId)) return;
         }
-        if (targetId === 'view-reportes' && currentUser.rol !== 'Administrador') {
+
+        if (targetId.startsWith('view-rh-') && !esAdmin && !esRH) return;
+
+        // ✅ NUEVO: si la vista no existe en el DOM, no navegar (evita "no se puede acceder a esa página")
+        const target = document.getElementById(targetId);
+        if (!target) {
+            console.warn(`⚠️ La vista "${targetId}" no existe en el DOM. Navegación cancelada.`);
             return;
         }
 
         menuItems.forEach(i => i.classList.remove('active'));
         views.forEach(v => v.classList.remove('active'));
-        
-        const target = document.getElementById(targetId);
-        if (target) target.classList.add('active');
+
+        target.classList.add('active');
 
         const activeMenu = document.querySelector(`.menu-item[data-target="${targetId}"]`);
         if (activeMenu) {
             activeMenu.classList.add('active');
-            // Si el módulo está dentro del submenú, lo dejamos desplegado
             const sub = activeMenu.closest('.submenu-list');
             if (sub) {
                 sub.style.display = 'block';
@@ -79,29 +111,22 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 if (chev) chev.style.transform = 'rotate(180deg)';
             }
         }
-        
+
+        // ✅ CORREGIDO: solo actualizar el hash si la vista existe (evita la pantalla "no se puede acceder")
         window.location.hash = targetId.replace('view-', '');
     }
     window.switchView = switchView;
 
     menuItems.forEach(item => {
         item.addEventListener('click', (e) => {
-            if (item.classList.contains('toggle-submenu')) {
-                return; 
-            }
-
+            if (item.classList.contains('toggle-submenu')) return;
             e.preventDefault();
-            
             const target = item.getAttribute('data-target');
-            if (target) {
-                switchView(target);
-            }
-            
+            if (target) switchView(target);
             if (window.innerWidth <= 768) window.closeMobileMenu();
         });
     });
 
-    // Submenú "Gestión de Soporte" (abrir / cerrar)
     document.querySelectorAll('.toggle-submenu').forEach(toggle => {
         const submenu = toggle.parentElement.querySelector('.submenu-list');
         const chevron = toggle.querySelector('.chevron-icon');
@@ -109,44 +134,51 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
         toggle.addEventListener('click', (e) => {
             e.stopPropagation();
-            e.stopImmediatePropagation(); // evita que otro listener lo vuelva a alternar
+            e.stopImmediatePropagation();
             const abierto = submenu.style.display !== 'none';
             submenu.style.display = abierto ? 'none' : 'block';
             if (chevron) chevron.style.transform = abierto ? '' : 'rotate(180deg)';
         });
     });
 
+    // ✅ CORREGIDO: validar hash inicial y caer en vista válida para RH
     const hash = window.location.hash.replace('#', '');
     if (hash && hash !== 'detalle-ticket' && document.getElementById('view-' + hash)) {
         switchView('view-' + hash);
+    } else if (esRH) {
+        // RH cae en trainees si existe; si no, en inicio
+        if (document.getElementById('view-rh-trainees')) {
+            switchView('view-rh-trainees');
+        } else if (document.getElementById('view-inicio')) {
+            switchView('view-inicio');
+        }
     }
 
-    // 2. Inicializar Modelos
+    // =============================================
+    // 3. INICIALIZAR MODELOS
+    // =============================================
     const ticketModel = new TicketModel();
     const documentModel = new DocumentModel();
 
     const rolMap = {
         'Administrador': 'admin',
         'Consultor': 'consultor',
-        'Solicitante': 'cliente'
+        'Solicitante': 'cliente',
+        'RH': 'rh'
     };
     const userRoleNormalized = rolMap[currentUser.rol] || 'cliente';
 
-    // 3. Inicializar Controladores
+    // =============================================
+    // 4. INICIALIZAR CONTROLADORES
+    // =============================================
     if (document.getElementById('view-inicio')) new DashboardController();
     if (document.getElementById('view-documentos')) new DocumentController(documentModel, userRoleNormalized, currentUser.nombre);
     new GlobalSearchController(ticketModel, documentModel, null);
 
     window.ticketDetailController = new TicketDetailController(ticketModel, userRoleNormalized, currentUser.nombre);
-    
-    if (document.getElementById('view-dashboard') && currentUser.rol === 'Administrador') {
-        new HoursController();
-    }
 
-    if (document.getElementById('view-reportes')) {
-        new ReportController();
-    }
-
+    if (document.getElementById('view-dashboard') && esAdmin) new HoursController();
+    if (document.getElementById('view-reportes')) new ReportController();
     new NotificationController();
 
     if (document.getElementById('view-usuarios')) {
@@ -155,17 +187,73 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             .catch(error => console.warn("⚠️ Módulo de usuarios no cargado:", error));
     }
 
-    // ✅ Lógica de los Accesos Rápidos del Inicio
+    // =============================================
+    // 5. LÓGICA DE RH
+    // =============================================
+    async function initRHModule() {
+        // ✅ CORREGIDO: verificar view-rh-trainees (vista real permitida para RH)
+        if (!document.getElementById('view-rh-trainees')) return;
+
+        try {
+            const { TraineeController } = await import('./rh/controllers/TraineeController.js');
+            const { JcfController } = await import('./rh/controllers/JcfController.js');
+            const { EntrevistaController } = await import('./rh/controllers/EntrevistaController.js');
+            const { HorasController } = await import('./rh/controllers/HorasController.js');
+            const { DocumentoController } = await import('./rh/controllers/DocumentoController.js');
+
+            const trainees = [];
+            const jcfData = [];
+
+            const rhEntrevistas = new EntrevistaController({
+                obtenerCandidatos: (tipo) => (tipo === 'Trainee' ? trainees : jcfData)
+                    .map(c => ({ id: Number(c.id), nombre: `${c.nombre} ${c.apellidos}` })),
+            });
+
+            const rhHoras = new HorasController({
+                obtenerTrainees: () => trainees.map(t => ({ id: Number(t.id), nombre: `${t.nombre} ${t.apellidos}` })),
+            });
+
+            const rhDocumentos = new DocumentoController();
+
+            new TraineeController({
+                navegar: (vista, menu) => { window.switchView(vista); },
+                alAbrirExpediente: (id) => {
+                    rhEntrevistas.mostrarEnExpediente('Trainee', id);
+                    rhHoras.mostrarEnExpediente(id);
+                    rhDocumentos.mostrarEnExpediente('Trainee', id);
+                },
+                alCambiar: (lista) => { trainees.splice(0, trainees.length, ...lista); },
+            });
+
+            new JcfController({
+                navegar: (vista, menu) => { window.switchView(vista); },
+                alAbrirExpediente: (id) => {
+                    rhEntrevistas.mostrarEnExpediente('JCF', id);
+                    rhDocumentos.mostrarEnExpediente('JCF', id);
+                },
+                alCambiar: (lista) => { jcfData.splice(0, jcfData.length, ...lista); },
+            });
+
+        } catch (error) {
+            console.error("⚠️ Error al cargar el módulo de RH:", error);
+        }
+    }
+
+    initRHModule();
+
+    // =============================================
+    // 6. ACCESOS RÁPIDOS
+    // =============================================
     const btnQuickTicket = document.getElementById('btn-quick-ticket');
     if (btnQuickTicket) {
         btnQuickTicket.addEventListener('click', () => {
-            switchView('view-tickets'); 
+            switchView('view-tickets');
             const modal = document.getElementById('ticket-modal');
             if (modal) {
                 document.getElementById('new-ticket-title').value = '';
                 document.getElementById('new-ticket-description').value = '';
                 document.getElementById('new-ticket-type').value = 'Funcional';
-                
+
                 const inputEmpresa = document.getElementById('new-ticket-empresa');
                 if(inputEmpresa) inputEmpresa.value = currentUser.empresa || '';
 
@@ -190,16 +278,16 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             switchView('view-calendario');
         });
     }
-    
+
     // =============================================
-    // 4. ARCHIVOS TEMPORALES
+    // 7. ARCHIVOS TEMPORALES (TICKETS)
     // =============================================
     let archivosTemporales = [];
 
     function renderFilePreview() {
         const preview = document.getElementById('file-preview');
         if (!preview) return;
-        
+
         preview.innerHTML = '';
         archivosTemporales.forEach((file, index) => {
             const tag = document.createElement('div');
@@ -232,29 +320,16 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    function formatearFechaAmigable(fechaString) {
-        if (!fechaString) return '-';
-        if (fechaString.includes('Hoy')) return fechaString;
-        const hoy = new Date();
-        const fechaTicket = new Date(fechaString);
-        if (isNaN(fechaTicket.getTime())) return fechaString; 
-        if (fechaTicket.getDate() === hoy.getDate() && fechaTicket.getMonth() === hoy.getMonth() && fechaTicket.getFullYear() === hoy.getFullYear()) {
-            const hora = fechaString.includes(',') ? fechaString.split(',')[1].trim() : '';
-            return `Hoy${hora ? ', ' + hora : ''}`;
-        }
-        return fechaString;
-    }
-
     // =============================================
-    // 5. LÓGICA DE TICKETS (CON FILTRO POR ROL)
+    // 8. RENDER TICKETS
     // =============================================
     function renderTickets() {
         const tbody = document.getElementById('tickets-tbody');
         if (!tbody) return;
         tbody.innerHTML = '';
-        
+
         let ticketsAMostrar = ticketModel.getAllTickets();
-        
+
         if (currentUser.rol === 'Solicitante') {
             ticketsAMostrar = ticketsAMostrar.filter(t => t.solicitante === currentUser.nombre);
         } else if (currentUser.rol === 'Consultor') {
@@ -266,12 +341,12 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         const filtroPrioridad = document.getElementById('filter-priority')?.value || 'todas';
 
         ticketsAMostrar = ticketsAMostrar.filter(ticket => {
-            const coincideTexto = filtroTexto === '' || 
-                ticket.id.toLowerCase().includes(filtroTexto) || 
+            const coincideTexto = filtroTexto === '' ||
+                ticket.id.toLowerCase().includes(filtroTexto) ||
                 ticket.title.toLowerCase().includes(filtroTexto);
 
-            const estadoParaFiltro = (!ticket.responsable || ticket.responsable === 'Sin asignar') 
-                ? 'En espera' 
+            const estadoParaFiltro = (!ticket.responsable || ticket.responsable === 'Sin asignar')
+                ? 'En espera'
                 : ticket.status;
 
             const coincideEstado = filtroEstado === 'todos' || estadoParaFiltro === filtroEstado;
@@ -285,10 +360,10 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             tr.className = 'ticket-row';
             tr.dataset.id = ticket.id;
             tr.style.cursor = 'pointer';
-            
+
             const priorityClass = ticket.priority === 'Alta' ? 'alta' : ticket.priority === 'Media' ? 'media' : 'baja';
             const statusClass = ticket.status === 'En atención' ? 'atencion' : ticket.status === 'En espera' ? 'espera' : ticket.status === 'Resuelto' ? 'resuelto' : 'abierto';
-            
+
             tr.innerHTML = `
                 <td class="ticket-id">${ticket.id}</td>
                 <td>${ticket.title}</td>
@@ -298,7 +373,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 <td>${ticket.responsable || 'Sin asignar'}</td>
                 <td>${ticket.date}</td>
             `;
-            
+
             tr.addEventListener('click', () => {
                 const drawer = document.getElementById('ticket-drawer');
                 const overlay = document.getElementById('drawer-overlay');
@@ -310,11 +385,11 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     document.getElementById('drawer-empresa').textContent = ticket.empresa;
                     document.getElementById('drawer-date').textContent = ticket.date;
                     document.getElementById('drawer-description').textContent = ticket.description;
-                    
+
                     const statusBadge = document.getElementById('drawer-status');
                     statusBadge.textContent = ticket.status;
                     statusBadge.className = 'badge-status ' + statusClass;
-                    
+
                     const priorityBadge = document.getElementById('drawer-priority');
                     priorityBadge.textContent = ticket.priority;
                     priorityBadge.className = 'badge-priority ' + priorityClass;
@@ -324,7 +399,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                         timeline.innerHTML = '';
                         const historialTicket = ticketModel.getHistoryByTicketId(ticket.id) || [];
                         const esAdmin = currentUser.rol === 'Administrador';
-                        
+
                         const historialFiltrado = historialTicket.filter(item => {
                             if (item.tipo === 'horas' && !esAdmin) return false;
                             return true;
@@ -400,7 +475,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         document.addEventListener('ticketUpdated', window.handleTicketUpdated);
     }
 
-    // ✅ Lógica de los filtros de tickets
     const filterText = document.getElementById('filter-text');
     const filterStatus = document.getElementById('filter-status');
     const filterPriority = document.getElementById('filter-priority');
@@ -411,7 +485,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
     function updateBadge() {
         let allTickets = ticketModel.getAllTickets();
-        
+
         if (currentUser.rol === 'Solicitante') {
             allTickets = allTickets.filter(t => t.solicitante === currentUser.nombre);
         } else if (currentUser.rol === 'Consultor') {
@@ -419,7 +493,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         }
 
         const abiertos = allTickets.filter(t => t.status !== 'Resuelto').length;
-        
+
         const badgeMenu = document.querySelector('.menu-item[data-target="view-tickets"] .badge');
         if (badgeMenu) {
             badgeMenu.textContent = abiertos;
@@ -441,17 +515,19 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     renderTickets();
     updateBadge();
 
-    // CERRAR DRAWER
+    // =============================================
+    // 9. DRAWER Y MODAL DE TICKETS
+    // =============================================
     const drawerOverlay = document.getElementById('drawer-overlay');
     const btnCerrarDrawer = document.getElementById('btn-cerrar-drawer');
-    
+
     if (drawerOverlay) {
         drawerOverlay.addEventListener('click', () => {
             document.getElementById('ticket-drawer').classList.remove('open');
             drawerOverlay.classList.remove('active');
         });
     }
-    
+
     if (btnCerrarDrawer) {
         btnCerrarDrawer.addEventListener('click', () => {
             document.getElementById('ticket-drawer').classList.remove('open');
@@ -459,7 +535,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    // ABRIR MODAL TICKET
     const btnNuevoTicket = document.getElementById('btn-nuevo-ticket');
     if (btnNuevoTicket) {
         btnNuevoTicket.addEventListener('click', (e) => {
@@ -470,7 +545,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 document.getElementById('new-ticket-description').value = '';
                 archivosTemporales = [];
                 renderFilePreview();
-                
+
                 const inputEmpresa = document.getElementById('new-ticket-empresa');
                 if(inputEmpresa) inputEmpresa.value = currentUser.empresa || '';
 
@@ -483,23 +558,21 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    // CERRAR MODAL TICKET
     const closeModal = () => document.getElementById('ticket-modal').classList.remove('active');
     const btnCerrarModal = document.getElementById('btn-cerrar-modal');
     const btnCancelarModal = document.getElementById('btn-cancelar-modal');
     if (btnCerrarModal) btnCerrarModal.addEventListener('click', closeModal);
     if (btnCancelarModal) btnCancelarModal.addEventListener('click', closeModal);
 
-    // CAMPOS CONDICIONALES TICKET
     const typeSelect = document.getElementById('new-ticket-type');
     if (typeSelect) {
         typeSelect.addEventListener('change', (e) => {
             const groupFuncional = document.getElementById('group-funcional');
             const groupTecnico = document.getElementById('group-tecnico');
             const conditionalFields = document.getElementById('conditional-fields');
-            
+
             conditionalFields.style.display = 'block';
-            
+
             if (e.target.value === 'Funcional') {
                 groupFuncional.style.display = 'block';
                 groupTecnico.style.display = 'none';
@@ -510,7 +583,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    // CREAR TICKET
     const btnSubmitTicket = document.getElementById('btn-submit-ticket');
     if (btnSubmitTicket) {
         btnSubmitTicket.addEventListener('click', () => {
@@ -518,7 +590,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const priority = document.getElementById('new-ticket-priority').value;
             const description = document.getElementById('new-ticket-description').value.trim();
             const typeValue = document.getElementById('new-ticket-type').value;
-            
+
             const empresaTicket = document.getElementById('new-ticket-empresa').value.trim();
 
             if (title === '' || description === '') {
@@ -549,12 +621,11 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 contexto: '',
                 medioRecepcion: 'Portal',
                 enlaceExterno: '',
-                solicitante: currentUser.nombre, 
+                solicitante: currentUser.nombre,
                 empresa: empresaTicket || currentUser.empresa || 'Innology Services',
                 fechaExacta: new Date().toISOString().split('T')[0]
             };
 
-            
             const newTicket = ticketModel.createTicket(title, category, priority, description, archivosTemporales, extraData);
 
             if (!newTicket || !newTicket.id) {
@@ -569,12 +640,12 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             } catch (error) {
                 console.error('⚠️ Error al guardar los documentos del ticket:', error);
             }
-            
+
             renderTickets();
             updateBadge();
-            
+
             document.dispatchEvent(new CustomEvent('documentAdded'));
-            
+
             try {
                 if (window.notify) {
                     window.notify({
@@ -597,12 +668,12 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             } catch (error) {
                 console.error('⚠️ Error al enviar las notificaciones:', error);
             }
-            
+
             document.getElementById('new-ticket-title').value = '';
             document.getElementById('new-ticket-description').value = '';
             archivosTemporales = [];
             renderFilePreview();
-            
+
             document.getElementById('new-ticket-type').value = 'Funcional';
             document.getElementById('conditional-fields').style.display = 'none';
             document.getElementById('group-funcional').style.display = 'none';
@@ -616,11 +687,13 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         });
     }
 
-    // 6. Menú móvil, notificaciones
+    // =============================================
+    // 10. MENÚ MÓVIL Y NOTIFICACIONES
+    // =============================================
     const sidebar = document.getElementById('sidebar');
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
     const overlay = document.getElementById('overlay');
-    
+
     window.closeMobileMenu = function() {
         if(sidebar) sidebar.classList.remove('open');
         if(overlay) overlay.classList.remove('active');
@@ -659,9 +732,11 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         }
     });
 
-    
+    // =============================================
+    // 11. CALENDARIO Y PRÓXIMOS EVENTOS
+    // =============================================
     let fechaActual = new Date();
-    
+
     let events = [
         { id: 1, date: "2026-11-05", time: "11:00", title: "Prueba de noviembre", type: "jcf", estado: "Pendiente", creador: "Laura Méndez", modalidad: "Online", enlace: "" },
         { id: 2, date: "2026-11-09", time: "10:00", title: "Revisión de avances", type: "trainee", estado: "Programada", creador: "Laura Méndez", modalidad: "Presencial", enlace: "" }
@@ -677,15 +752,11 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     }
 
     function obtenerEventosVisibles() {
-        const esAdmin = currentUser.rol === 'Administrador';
-        
-        if (esAdmin) {
-            return events;
-        }
+        if (esAdmin) return events;
 
         return events.filter(ev => {
             const esCreador = ev.creadorCorreo === currentUser.correo || ev.creador === currentUser.nombre;
-            const estaInvitado = ev.participantes && ev.participantes.some(p => 
+            const estaInvitado = ev.participantes && ev.participantes.some(p =>
                 p.correo === currentUser.correo || p.nombre === currentUser.nombre
             );
             return esCreador || estaInvitado;
@@ -722,10 +793,8 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             }
         }
 
-        // Tarjeta del Inicio (protegida para que nunca rompa la página)
         try { renderProximosEventos(); } catch (e) { console.error('Error en Próximos eventos:', e); }
     }
-
 
     function dibujarMes(year, month) {
         const contenedor = document.getElementById('calendar-days');
@@ -734,7 +803,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
         const eventosVisibles = obtenerEventosVisibles();
 
-        const primerDia = new Date(year, month, 1).getDay(); 
+        const primerDia = new Date(year, month, 1).getDay();
         const diasEnMes = new Date(year, month + 1, 0).getDate();
         let offset = primerDia === 0 ? 6 : primerDia - 1;
 
@@ -748,12 +817,12 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         for (let d = 1; d <= diasEnMes; d++) {
             const esHoy = esHoyMes && hoy.getDate() === d;
             const fechaStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            
+
             const eventosDelDia = eventosVisibles.filter(e => e.date === fechaStr);
 
             let htmlEventos = '';
             eventosDelDia.forEach(ev => {
-                const tipo = ev.type || 'jcf'; 
+                const tipo = ev.type || 'jcf';
                 htmlEventos += `<div class="event-pill ${tipo}" title="${ev.title} - ${ev.time}">${ev.time} - ${ev.title}</div>`;
             });
 
@@ -788,7 +857,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             return;
         }
 
-        const puedeEditar = currentUser.rol === 'Administrador' || currentUser.rol === 'Consultor';
+        const puedeEditar = esAdmin || currentUser.rol === 'Consultor';
 
         tbody.innerHTML = eventosDelMes.map(ev => {
             const d = new Date(ev.date + 'T00:00:00');
@@ -797,20 +866,20 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const anio = d.getFullYear();
             const fechaFormateada = `${dia} ${mes} ${anio}`;
 
-            const tipoClass = 'jcf'; 
+            const tipoClass = 'jcf';
             const tipoText = 'Reunión';
-            
+
             const estado = ev.estado || 'Programada';
-            let badgeEstado = 'espera'; // Amarillo
-            if (estado === 'En proceso') badgeEstado = 'atencion'; // Morado
-            if (estado === 'Completada') badgeEstado = 'resuelto'; // Verde
-            if (estado === 'Cancelada') badgeEstado = 'cancelada'; // Rojo
-            
-            const enlaceHTML = ev.enlace 
-                ? `<a href="${ev.enlace}" target="_blank" style="color:var(--primary-red); font-weight:600; font-size:0.8rem;">Link</a>` 
+            let badgeEstado = 'espera';
+            if (estado === 'En proceso') badgeEstado = 'atencion';
+            if (estado === 'Completada') badgeEstado = 'resuelto';
+            if (estado === 'Cancelada') badgeEstado = 'cancelada';
+
+            const enlaceHTML = ev.enlace
+                ? `<a href="${ev.enlace}" target="_blank" style="color:var(--primary-red); font-weight:600; font-size:0.8rem;">Link</a>`
                 : '-';
 
-            const accionesHTML = puedeEditar 
+            const accionesHTML = puedeEditar
                 ? `
                     <div style="display:flex; gap:5px;">
                         <button class="btn-action" title="Editar" onclick="window.editarReunion('${ev.id}')">
@@ -835,10 +904,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         }).join('');
     }
 
-
-    // =============================================
-    // PRÓXIMOS EVENTOS (tarjeta del Inicio)
-    // =============================================
     function renderProximosEventos() {
         const cont = document.getElementById('proximos-eventos-list');
         if (!cont) return;
@@ -852,18 +917,48 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 const f = new Date(ev.date + 'T00:00:00');
                 return f >= hoy && ev.estado !== 'Cancelada' && ev.estado !== 'Completada';
             })
-            .sort((a, b) => a.date !== b.date
-                ? a.date.localeCompare(b.date)
-                : (a.time || '').localeCompare(b.time || ''))
-            .slice(0, 4);
+            .map(ev => ({
+                titulo: ev.title,
+                fecha: ev.date,
+                hora: ev.time,
+                modalidad: ev.modalidad || 'Online',
+                tipo: 'reunion'
+            }));
 
-        if (proximos.length === 0) {
+        let entrevistas = [];
+        try {
+            entrevistas = JSON.parse(localStorage.getItem('innology_entrevistas')) || [];
+        } catch (e) {
+            console.warn('Error leyendo entrevistas', e);
+        }
+
+        entrevistas.forEach(ev => {
+            if (ev.estado === 'Cancelada' || ev.estado === 'Realizada') return;
+            const f = new Date(ev.fecha + 'T00:00:00');
+            if (f >= hoy) {
+                proximos.push({
+                    titulo: `Entrevista: ${ev.candidato_nombre || ev.candidatoNombre || 'Candidato'}`,
+                    fecha: ev.fecha,
+                    hora: ev.hora,
+                    modalidad: ev.modalidad || 'Online',
+                    tipo: 'entrevista'
+                });
+            }
+        });
+
+        const ordenados = proximos
+            .sort((a, b) => a.fecha !== b.fecha
+                ? a.fecha.localeCompare(b.fecha)
+                : (a.hora || '').localeCompare(b.hora || ''))
+            .slice(0, 5);
+
+        if (ordenados.length === 0) {
             cont.innerHTML = `<p style="color:#9CA3AF; font-size:0.85rem; margin:0;">No hay eventos próximos.</p>`;
             return;
         }
 
-        cont.innerHTML = proximos.map(ev => {
-            const d = new Date(ev.date + 'T00:00:00');
+        cont.innerHTML = ordenados.map(ev => {
+            const d = new Date(ev.fecha + 'T00:00:00');
             const dia = String(d.getDate()).padStart(2, '0');
             const mes = getMonthName(d.getMonth()).substring(0, 3);
             return `
@@ -873,16 +968,13 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                         <div style="font-size:0.65rem; text-transform:uppercase;">${mes}</div>
                     </div>
                     <div>
-                        <div style="font-size:0.85rem; font-weight:600;">${ev.title}</div>
-                        <div style="font-size:0.75rem; color:#6B7280;">${formatoHora(ev.time)} · ${ev.modalidad || 'Online'}</div>
+                        <div style="font-size:0.85rem; font-weight:600;">${ev.titulo}</div>
+                        <div style="font-size:0.75rem; color:#6B7280;">${formatoHora(ev.hora)} · ${ev.modalidad}</div>
                     </div>
                 </div>`;
         }).join('');
     }
 
-    // =============================================
-    // CUMPLEAÑOS (tarjeta del Inicio) - próximos 30 días
-    // =============================================
     function renderCumpleanos() {
         const cont = document.getElementById('cumpleanos-list');
         if (!cont) return;
@@ -892,8 +984,23 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
         const usuarios = new UserModel().getAllUsers().filter(u => u.estado === 'Activo');
 
-        const cumples = usuarios.map(u => {
-            const fecha = u.fechaNacimiento || u.birthdate || u.fecha_nacimiento || u.fechaNac;
+        let trainees = [];
+        let jcf = [];
+        try {
+            trainees = JSON.parse(localStorage.getItem('innology_trainees')) || [];
+            jcf = JSON.parse(localStorage.getItem('innology_jcf')) || [];
+        } catch (e) {
+            console.warn('Error leyendo trainees/jcf', e);
+        }
+
+        const candidatos = [
+            ...usuarios.map(u => ({ nombre: u.nombre, fecha: u.fechaNacimiento || u.birthdate || u.fecha_nacimiento || u.fechaNac })),
+            ...trainees.map(t => ({ nombre: `${t.nombre} ${t.apellidos || ''}`.trim(), fecha: t.fechaNacimiento || t.fecha_nacimiento })),
+            ...jcf.map(j => ({ nombre: `${j.nombre} ${j.apellidos || ''}`.trim(), fecha: j.fechaNacimiento || j.fecha_nacimiento }))
+        ];
+
+        const cumples = candidatos.map(c => {
+            const fecha = c.fecha;
             if (!fecha || typeof fecha !== 'string') return null;
             const [, m, d] = fecha.substring(0, 10).split('-').map(Number);
             if (!m || !d) return null;
@@ -902,7 +1009,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             if (proximo < hoy) proximo = new Date(hoy.getFullYear() + 1, m - 1, d);
             const dias = Math.round((proximo - hoy) / 86400000);
 
-            return { nombre: u.nombre, dia: d, mes: m - 1, dias };
+            return { nombre: c.nombre, dia: d, mes: m - 1, dias };
         })
         .filter(c => c && c.dias <= 30)
         .sort((a, b) => a.dias - b.dias)
@@ -920,8 +1027,8 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     ${c.dias === 0 ? '🎉 ¡Hoy!' : `${c.dia} ${getMonthName(c.mes).substring(0, 3).toLowerCase()}`}
                 </span>
             </div>`).join('');
-    }    
-     
+    }
+
     function poblarParticipantes(participantesActuales = []) {
         const userModel = new UserModel();
         const usuariosActivos = userModel.getAllUsers().filter(u => u.estado === 'Activo');
@@ -938,7 +1045,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                 const li = document.createElement('li');
                 const estaInvitado = participantesActuales.some(p => p.correo === u.correo || p.nombre === u.nombre);
                 const checked = estaInvitado ? 'checked' : '';
-                
+
                 li.innerHTML = `<label><input type="checkbox" value="${u.correo}" data-nombre="${u.nombre}" ${checked}> ${u.nombre} (${u.rol})</label>`;
                 listaParticipantes.appendChild(li);
             }
@@ -1017,7 +1124,6 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
         };
     }
 
-
     const btnAgendar = document.getElementById('btn-agendar-reunion');
     const meetingModal = document.getElementById('meeting-modal');
     const btnCerrarMeeting = document.getElementById('btn-cerrar-modal-meeting');
@@ -1049,16 +1155,16 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             document.getElementById('meeting-modalidad').value = 'Online';
             document.getElementById('meeting-enlace').value = '';
             document.getElementById('meeting-enlace').parentElement.style.display = 'block';
-            
+
             const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1); 
+            tomorrow.setDate(tomorrow.getDate() + 1);
             const minDate = tomorrow.toISOString().split('T')[0];
             const dateInput = document.getElementById('meeting-date');
-            dateInput.min = minDate; 
-            dateInput.value = minDate; 
+            dateInput.min = minDate;
+            dateInput.value = minDate;
 
             poblarParticipantes([]);
-            
+
             meetingModal.classList.add('active');
         });
     }
@@ -1066,7 +1172,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
     const closeMeetingModal = () => { if (meetingModal) meetingModal.classList.remove('active'); };
     if (btnCerrarMeeting) btnCerrarMeeting.addEventListener('click', closeMeetingModal);
     if (btnCancelarMeeting) btnCancelarMeeting.addEventListener('click', closeMeetingModal);
-    
+
     if (btnSubmitMeeting) {
         btnSubmitMeeting.addEventListener('click', () => {
             const idEditandoRaw = document.getElementById('meeting-id').value;
@@ -1078,7 +1184,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
             const estadoSeleccionado = document.getElementById('meeting-estado').value;
             const modalidadSeleccionada = document.getElementById('meeting-modalidad').value;
             const enlaceIngresado = document.getElementById('meeting-enlace').value.trim();
-            
+
             const checkboxesParticipantes = document.querySelectorAll('#dropdown-participantes .items input[type="checkbox"]:checked');
             const participantes = Array.from(checkboxesParticipantes).map(cb => ({
                 correo: cb.value,
@@ -1092,13 +1198,13 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
             const selectedDate = new Date(date + 'T00:00:00');
             const todayCheck = new Date();
-            todayCheck.setHours(0, 0, 0, 0); 
+            todayCheck.setHours(0, 0, 0, 0);
 
             if (!idEditando && selectedDate <= todayCheck) {
                 alert('No puedes agendar una reunión para hoy ni para días pasados. Debe ser con al menos 1 día de anticipación.');
                 return;
             }
-            
+
             if (idEditando) {
                 const index = events.findIndex(e => Number(e.id) === idEditando);
                 if (index !== -1) {
@@ -1119,7 +1225,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     date: date,
                     time: time,
                     title: title,
-                    type: 'reunion', 
+                    type: 'reunion',
                     estado: estadoSeleccionado,
                     modalidad: modalidadSeleccionada,
                     enlace: enlaceIngresado,
@@ -1145,7 +1251,7 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
                     tipo: 'reunion',
                     targetView: 'view-calendario'
                 });
-                
+
                 participantes.forEach(p => {
                     window.notify({
                         titulo: 'Invitación a Reunión',
@@ -1161,4 +1267,34 @@ console.log(`👤 Sesión iniciada como: ${currentUser.nombre} (${currentUser.ro
 
     renderCalendario();
     try { renderCumpleanos(); } catch (e) { console.error('Error en Cumpleaños:', e); }
+
+    // ✅ ESCUCHAR CAMBIOS DE RH PARA ACTUALIZAR EL INICIO EN TIEMPO REAL
+    window.addEventListener('rhDataUpdated', () => {
+        if (typeof renderProximosEventos === 'function') renderProximosEventos();
+        if (typeof renderCumpleanos === 'function') renderCumpleanos();
+    });
+
+    // ✅ ESCUCHAR ACCIONES DE RH Y NOTIFICAR AL ADMIN
+    window.addEventListener('rhAccion', (e) => {
+        const { mensaje, tipo } = e.detail;
+        const currentUser = JSON.parse(sessionStorage.getItem('innology_user'));
+
+        if (window.notify && currentUser) {
+            const userModel = new UserModel();
+            const admins = userModel.getAllUsers().filter(u => u.rol === 'Administrador');
+
+            admins.forEach(admin => {
+                if (admin.nombre !== currentUser.nombre) {
+                    window.notify({
+                        titulo: 'Actualización en Recursos Humanos',
+                        mensaje: mensaje,
+                        destinatario: admin.nombre,
+                        tipo: 'sistema',
+                        targetView: 'view-rh-trainees'
+                    });
+                }
+            });
+        }
+    });
+
 }); // Fin del DOMContentLoaded

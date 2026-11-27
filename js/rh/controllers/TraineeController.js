@@ -65,7 +65,12 @@ export class TraineeController {
             },
             (nuevaPagina) => { this.pagina = nuevaPagina; this.refrescar(); }
         );
+        
         this.alCambiar(this.model.lista);
+        
+        // ✅ Guardamos en localStorage y avisamos a la intranet
+        localStorage.setItem('innology_trainees', JSON.stringify(this.model.lista || []));
+        window.dispatchEvent(new Event('rhDataUpdated')); 
     }
 
     /* ---------- Guardar (nuevo o editar) ---------- */

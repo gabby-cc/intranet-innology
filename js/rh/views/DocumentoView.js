@@ -35,11 +35,12 @@ function ocultar(modal) {
 export class DocumentoView {
     constructor() {
         this.tbody = $('docs-tbody');
-        this.modal = $('doc-modal');
-        this.titulo = $('doc-modal-title');
-        this.btnGuardar = $('btn-guardar-doc');
-        this.inputArchivo = $('doc-file-input');
-        this.nombreArchivo = $('doc-file-name');
+        // ✅ CAMBIO: IDs actualizados para evitar choque
+        this.modal = $('rh-doc-modal');
+        this.titulo = $('rh-doc-modal-title');
+        this.btnGuardar = $('btn-guardar-rh-doc');
+        this.inputArchivo = $('rh-doc-file-input');
+        this.nombreArchivo = $('rh-doc-file-name');
 
         this.filtros = {
             texto: $('filter-doc-text'),
@@ -48,12 +49,11 @@ export class DocumentoView {
         };
 
         this.campos = {
-            nombre: $('doc-nombre'),
-            descripcion: $('doc-descripcion'),
-            estado: $('doc-estado'),
+            nombre: $('rh-doc-nombre'),
+            descripcion: $('rh-doc-descripcion'),
+            estado: $('rh-doc-estado'),
         };
 
-        // Pestañas de los expedientes
         this.paneles = {
             Trainee: $('exp-panel-documentos'),
             JCF: $('exp-jcf-panel-documentos'),
@@ -86,7 +86,7 @@ export class DocumentoView {
         });
     }
     alCerrarModal(cb) {
-        ['btn-cerrar-modal-doc', 'btn-cancelar-modal-doc'].forEach((id) => $(id)?.addEventListener('click', cb));
+        ['btn-cerrar-modal-rh-doc', 'btn-cancelar-modal-rh-doc'].forEach((id) => $(id)?.addEventListener('click', cb));
     }
     alGuardar(cb) { this.btnGuardar?.addEventListener('click', cb); }
 

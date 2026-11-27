@@ -8,7 +8,7 @@ export class DocumentoController {
         this.view = new DocumentoView();
 
         this.editandoId = null;
-        this.expedienteActual = null;   // { tipo, id } del expediente abierto
+        this.expedienteActual = null;
 
         this.conectarEventos();
         this.cargar();
@@ -77,9 +77,15 @@ export class DocumentoController {
 
         this.view.bloquearGuardar(true);
         try {
+            const esEdicion = !!this.editandoId;
             await this.model.guardarPlantilla(this.editandoId, datos, archivo);
             this.cerrarModal();
             this.refrescar();
+
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se ha ${esEdicion ? 'actualizado' : 'subido'} la plantilla: "${datos.nombre}".`, tipo: 'documento' }
+            }));
+
         } catch (e) {
             alert('No se pudo guardar: ' + e.message);
         } finally {
@@ -98,7 +104,6 @@ export class DocumentoController {
         this.refrescar();
     }
 
-    /* ---------- Expedientes (los llaman TraineeController y JcfController) ---------- */
     mostrarEnExpediente(tipo, id) {
         this.expedienteActual = { tipo, id: Number(id) };
         this.pintarExpediente();
@@ -110,7 +115,7 @@ export class DocumentoController {
         this.view.renderPanel(tipo, id, this.model.cvsDe(tipo, id));
     }
 
-        async subirDocumento({ tipo, candidatoId, nombre, descripcion, archivo }) {
+    async subirDocumento({ tipo, candidatoId, nombre, descripcion, archivo }) {
         if (!nombre) { alert('El nombre del documento es obligatorio.'); return; }
         if (!archivo) { alert('Selecciona el archivo que quieres subir.'); return; }
         const error = validarArchivo(archivo, EXT_CV, MAX_CV_MB);
@@ -118,6 +123,10 @@ export class DocumentoController {
         try {
             await this.model.subirDocumento(tipo, candidatoId, { nombre, descripcion }, archivo);
             this.refrescar();
+
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se ha subido un nuevo documento al expediente de un ${tipo}.`, tipo: 'documento' }
+            }));
         } catch (e) {
             alert('No se pudo subir el documento: ' + e.message);
         }

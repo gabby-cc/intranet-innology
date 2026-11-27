@@ -3,17 +3,14 @@ import { HorasView } from '../views/HorasView.js';
 import { leerExcelChecador } from '../checadorParser.js';
 
 export class HorasController {
-    /**
-     * @param obtenerTrainees función () => [{ id, nombre }] con los Trainees registrados
-     */
     constructor({ obtenerTrainees }) {
         this.model = new HorasModel();
         this.view = new HorasView();
         this.obtenerTrainees = obtenerTrainees;
 
         this.editandoId = null;
-        this.importacion = null;          // datos del Excel mientras se revisan
-        this.expedienteTraineeId = null;  // Trainee cuyo expediente está abierto
+        this.importacion = null;
+        this.expedienteTraineeId = null;
 
         this.conectarEventos();
         this.cargar();
@@ -61,10 +58,9 @@ export class HorasController {
         this.pintarExpediente();
     }
 
-    /* ---------- Expediente del Trainee (lo llama TraineeController) ---------- */
     mostrarEnExpediente(traineeId) {
         this.expedienteTraineeId = Number(traineeId);
-        this.view.renderPanel(this.expedienteTraineeId);   // arma la pestaña con los filtros limpios
+        this.view.renderPanel(this.expedienteTraineeId);
         this.pintarExpediente();
     }
 
@@ -75,7 +71,6 @@ export class HorasController {
         this.view.actualizarPanel(filtrados, this.model.resumen(filtrados), this.model.deTrainee(id).length > 0);
     }
 
-    /* ---------- Registro manual ---------- */
     nuevo(traineeId = null) {
         this.editandoId = null;
         this.view.abrirModal({ trainees: this.obtenerTrainees(), traineeId });
@@ -113,10 +108,15 @@ export class HorasController {
 
         this.view.bloquearGuardar(true);
         try {
-            if (this.editandoId) await this.model.actualizar(this.editandoId, datos);
+            const esEdicion = !!this.editandoId;
+            if (esEdicion) await this.model.actualizar(this.editandoId, datos);
             else await this.model.crear(datos);
             this.cerrarModal();
             this.refrescar();
+
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se ha ${esEdicion ? 'actualizado' : 'registrado'} un registro de horas.`, tipo: 'horas' }
+            }));
         } catch (e) {
             alert('No se pudo guardar: ' + e.message);
         } finally {
@@ -124,7 +124,6 @@ export class HorasController {
         }
     }
 
-    /* ---------- Importación del Excel del checador ---------- */
     buscarTraineePorNombre(nombre, trainees) {
         const n = norm(nombre);
         if (n.length < 3) return 0;
@@ -142,7 +141,7 @@ export class HorasController {
 
             this.importacion = { archivo: archivo.name, ...resultado, mapa: {} };
             resultado.empleados.forEach((emp) => {
-                const guardado = this.model.mapa[emp.id];   // ID del checador recordado en la base de datos
+                const guardado = this.model.mapa[emp.id];
                 this.importacion.mapa[emp.id] = (guardado && trainees.some((t) => t.id === guardado))
                     ? guardado
                     : this.buscarTraineePorNombre(emp.nombre, trainees);
@@ -229,6 +228,11 @@ export class HorasController {
             const incompletos = nuevos.filter((x) => !x.salida).length;
             this.cerrarImportacion();
             this.refrescar();
+
+            window.dispatchEvent(new CustomEvent('rhAccion', {
+                detail: { mensaje: `Se importaron ${r.insertados} registros de horas del checador (${incompletos} incompletos).`, tipo: 'horas' }
+            }));
+
             alert(`Importación lista: ${r.insertados} registros guardados (${incompletos} incompletos por revisar)` +
                 (r.omitidos ? `, ${r.omitidos} omitidos por ya existir.` : '.'));
         } catch (e) {
